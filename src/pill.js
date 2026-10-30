@@ -118,10 +118,13 @@ function buildTrack(li) {
   swapTo(() => {
     if (idx !== curLine || mode !== 'lyrics') return;
     trackEl.innerHTML = '';
-    lines[idx].words.forEach((w, k) => {
+    let letter = 0;                                   // сквозной номер буквы в строке — сдвиг фазы волны
+    lines[idx].words.forEach(w => {
       const s = document.createElement('span');
-      s.textContent = w.text;
-      s.style.setProperty('--i', k);                // номер слова — сдвиг фазы волны
+      if (settings.pillWave) {
+        for (const ch of w.text) { const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--l', letter++); s.appendChild(i); }
+        letter++;                                       // пробел между словами тоже занимает место в волне
+      } else s.textContent = w.text;
       w.el = s;
       trackEl.appendChild(s);
     });

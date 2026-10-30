@@ -231,10 +231,13 @@ function buildPill(idx) {
   setTimeout(() => {
     if (!lines[idx] || pillLine !== idx) return;
     pillTrack.innerHTML = '';
-    lines[idx].words.forEach((w, k) => {
+    let letter = 0;
+    lines[idx].words.forEach(w => {
       const s = document.createElement('span');
-      s.textContent = w.text;
-      s.style.setProperty('--i', k);
+      if (settings.pillWave) {
+        for (const ch of w.text) { const i = document.createElement('i'); i.textContent = ch; i.style.setProperty('--l', letter++); s.appendChild(i); }
+        letter++;
+      } else s.textContent = w.text;
       w.pEl = s;
       pillTrack.appendChild(s);
     });
@@ -387,6 +390,7 @@ function applySettings(s, local) {
   E.applyPillVars(pill, settings);
   pill.dataset.anim = settings.pillAnim || 'run';
   pill.dataset.eco = settings.pillEco ? '1' : '0';
+  if (pill.dataset.wave !== (settings.pillWave ? '1' : '0')) pillLine = -1;     // пересобрать строку: волна раскладывает слова на буквы
   pill.dataset.wave = settings.pillWave ? '1' : '0';
   pill.dataset.mode = 'lyrics';
   $$('#animGrid .anim-chip').forEach(b => b.classList.toggle('on', b.dataset.a === (settings.pillAnim || 'run')));

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.claude/
+dist-build/
+dist-b2/
+dist-b3/
+dist-b4/

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>MoonText Pill</title>
+<style>
+  :root { --spring: cubic-bezier(.34, 1.4, .64, 1); --smooth: cubic-bezier(.22, 1, .36, 1); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: transparent; overflow: hidden; font-family: "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; user-select: none; }
+  body { display: flex; align-items: center; align-content: flex-start; }
+  body[data-pos="center"] { justify-content: center; } body[data-pos="right"] { justify-content: flex-end; }
+
+  .pill {
+    height: 40px; width: 170px; display: flex; align-items: center; gap: var(--gap, 10px); padding: 0 var(--pad, 8px); border-radius: var(--pr, 999px); overflow: hidden; color: #fff;
+    background: linear-gradient(145deg, rgba(34,34,42,var(--pa, .94)), rgba(10,10,14,var(--pa, .94)));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 0 0 1px rgba(255,255,255,.1), 0 8px 26px rgba(0,0,0,.55);
+    opacity: 0; transform: translateY(14px) scale(.9);
+    transition: width var(--dur, .75s) var(--spring), height .6s var(--spring), opacity .6s var(--smooth), transform .8s var(--spring);
+  }
+  .pill.show { opacity: 1; transform: none; }
+  .pill[data-size="0"] { height: 32px; } .pill[data-size="0"] .track { font-size: 13.5px; } .pill[data-size="0"] .moon { width: 20px; height: 20px; }
+  .pill[data-size="1"] { height: 40px; } .pill[data-size="1"] .track { font-size: 15.5px; }
+  .pill[data-size="2"] { height: 46px; } .pill[data-size="2"] .track { font-size: 18px; } .pill[data-size="2"] .moon { width: 30px; height: 30px; }
+
+  .moon { display: var(--moon, block); flex: none; width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #fff, #aab3c6 40%, #2b2f3a 85%); box-shadow: 0 0 16px color-mix(in srgb, var(--acc, #c8d7ff) 55%, transparent); transition: width .5s var(--spring), height .5s var(--spring); }
+  .pill.paused .moon { opacity: .55; }
+  .view { position: relative; flex: 1; height: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
+  .track { width: max-content; position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; white-space: nowrap; font-weight: 700; letter-spacing: -.01em; transition: transform var(--dur, .75s) var(--smooth), opacity .3s, font-size .5s var(--spring); }
+  .track.swap { opacity: 0; }
+  .track .static { color: #fff; margin-right: 0; }
+  .pill.mini { gap: 0; padding: 0 8px; }
+  .pill.gone { opacity: 0 !important; }
+  .pill.mini .view { flex: 0; width: 0; opacity: 0; }
+  .pill.mini .moon { animation: breathe 3.2s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(.88); opacity: .7; } }
+  .track span { flex: none; margin-right: 7px; color: rgba(255,255,255,.4); transition: color .35s, transform .5s var(--spring), text-shadow .4s; }
+  .track span.done { color: rgba(255,255,255,.78); }
+  .track span.cur { color: var(--acc, #fff); transform: scale(1.12); text-shadow: 0 0 14px color-mix(in srgb, var(--acc, #fff) 70%, transparent); }
+
+/* анимации текста плашки: data-anim = run | fade | rise | pop | blur | fill */
+@property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+.pill[data-anim="fade"] .track span { transition: opacity .5s, color .35s; }
+.pill[data-anim="fade"] .track span:not(.done):not(.cur):not(.static) { opacity: 0; }
+.pill[data-anim="rise"] .track span { transition: transform .6s var(--spring), opacity .45s, color .35s; }
+.pill[data-anim="rise"] .track span:not(.done):not(.cur):not(.static) { opacity: 0; transform: translateY(.9em); }
+.pill[data-anim="rise"] .track span.cur { transform: translateY(-.06em) scale(1.06); }
+.pill[data-anim="pop"] .track span { transition: transform .5s var(--spring), color .3s, text-shadow .4s; }
+.pill[data-anim="pop"] .track span.cur { transform: scale(1.32); }
+.pill[data-anim="pop"] .track span.done { transform: scale(.92); }
+.pill[data-anim="blur"] .track span { transition: filter .55s, opacity .55s, color .35s; }
+.pill[data-anim="blur"] .track span:not(.done):not(.cur):not(.static) { filter: blur(5px); opacity: .55; }
+.pill[data-anim="fill"] .track span { transition: color .3s; }
+.pill[data-anim="fill"] .track span.done { color: var(--acc, #fff); }
+.pill[data-anim="fill"] .track span.cur {
+  transform: none; text-shadow: none; color: transparent;
+  background-image: linear-gradient(90deg, var(--acc, #fff) calc(var(--p) * (100% + 14px) - 14px), rgba(255,255,255,.4) calc(var(--p) * (100% + 14px)));
+  -webkit-background-clip: text; background-clip: text;
+}
+</style>
+</head>
+<body>
+  <div class="pill" id="pill" data-size="1">
+    <span class="moon"></span>
+    <div class="view"><div class="track" id="track"></div></div>
+  </div>
+  <script src="engine.js"></script>
+  <script src="pill.js"></script>
+</body>
+</html>

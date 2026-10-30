@@ -1,0 +1,206 @@
+/* Оверлей MoonText: общие стили для страницы OBS и превью в приложении. Всё под классом .ov */
+@property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+
+.ov {
+  --acc: #fff; --fs: 56px; --bg: .55; --ff: "Segoe UI", system-ui, sans-serif;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  position: relative; width: 100%; height: 100%; box-sizing: border-box; padding: 2%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ff); color: #fff; overflow: hidden; text-align: center;
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+.ov * { box-sizing: border-box; }
+.ov.is-idle { opacity: 0; transform: translateY(14px) scale(.985); }
+.ov[data-align="left"] { justify-content: flex-start; text-align: left; }
+.ov[data-align="right"] { justify-content: flex-end; text-align: right; }
+.ov[data-align="center"] { justify-content: center; text-align: center; }
+
+.ov-card { display: flex; flex-direction: column; gap: .5em; min-width: 0; max-width: 100%; align-items: center; }
+.ov[data-align="left"] .ov-card { align-items: flex-start; }
+.ov[data-align="right"] .ov-card { align-items: flex-end; }
+
+/* шапка: обложка + название */
+.ov-head { display: none; align-items: center; gap: .9em; font-size: calc(var(--fs) * .42); }
+.ov[data-cover="1"] .ov-head, .ov[data-meta="1"] .ov-head { display: flex; }
+.ov-coverbox { display: none; width: 3.6em; height: 3.6em; border-radius: .6em; overflow: hidden; background: rgba(255,255,255,.1); flex: none; }
+.ov[data-cover="1"] .ov-coverbox { display: block; }
+.ov-cover { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .6s; }
+.ov.has-cover .ov-cover { opacity: 1; }
+.ov-meta { display: none; flex-direction: column; text-align: inherit; min-width: 0; }
+.ov[data-meta="1"] .ov-meta { display: flex; }
+.ov-title { font-size: 1.15em; font-weight: 800; line-height: 1.15; }
+.ov-artist { font-size: .9em; opacity: .65; font-weight: 500; }
+.ov-moon, .ov-bar { display: none; }
+
+/* строки текста */
+.ov-lyrics { font-size: var(--fs); display: flex; flex-direction: column; gap: .16em; align-items: inherit; max-width: 100%; }
+.ov-line { font-weight: 800; line-height: 1.14; letter-spacing: -.02em; max-width: 100%; overflow-wrap: anywhere; text-wrap: balance; opacity: 0; transition: opacity .5s var(--ease); }
+.ov-line.empty { display: none; }
+.ov-line.p1, .ov-line.n1 { font-size: .62em; opacity: .4; }
+.ov-line.p2, .ov-line.n2 { font-size: .5em; opacity: .22; }
+.ov-line.cur { opacity: 1; }
+.ov[data-lines="1"] .ov-line:not(.cur) { display: none; }
+.ov[data-lines="3"] .ov-line.p2, .ov[data-lines="3"] .ov-line.n2 { display: none; }
+
+/* смена строки */
+.ov-lyrics.flip .ov-line.cur { animation: ovIn .7s var(--ease); }
+.ov-lyrics.flip .ov-line:not(.cur) { animation: ovFade .6s var(--ease); }
+@keyframes ovIn { from { opacity: 0; transform: translateY(.35em) scale(.96); filter: blur(6px); } }
+@keyframes ovFade { from { opacity: 0; } }
+
+/* слова: один слой — градиент, обрезанный по буквам (без каймы) */
+.ov-w { display: inline-block; margin-right: .24em; --p: 0; }
+.ov[data-words="1"] .ov-line.cur .ov-w {
+  color: transparent; --sung: var(--acc); --uns: rgba(255,255,255,.34);
+  background-image: linear-gradient(90deg, var(--sung) calc(var(--p) * (100% + .4em) - .4em), var(--uns) calc(var(--p) * (100% + .4em)));
+  background-repeat: no-repeat; -webkit-background-clip: text; background-clip: text;
+  padding: .06em .05em .14em; margin: -.06em .19em -.14em -.05em;
+  transition: --p .3s linear;
+}
+.ov[data-words="1"] .ov-line.cur .ov-w.done { --p: 1; }
+.ov[data-words="1"] .ov-line.cur .ov-w.is-cur { transition: none; }
+.ov[data-words="0"] .ov-line.cur .ov-w { color: #fff; }
+
+/* ================= общие детали виджетов ================= */
+.ov-card { position: relative; }
+.ov-aurora, .ov-eq { display: none; }
+.ov-eq { align-items: flex-end; gap: .14em; height: 1em; }
+.ov-eq i { width: .17em; height: 100%; border-radius: .12em; background: var(--acc); box-shadow: 0 0 .5em color-mix(in srgb, var(--acc) 60%, transparent); transform-origin: bottom; animation: ovEq 1s ease-in-out infinite; }
+.ov-eq i:nth-child(2) { animation-duration: 1.35s; animation-delay: -.3s; }
+.ov-eq i:nth-child(3) { animation-duration: .85s; animation-delay: -.55s; }
+.ov-eq i:nth-child(4) { animation-duration: 1.2s; animation-delay: -.15s; }
+.ov-eq i:nth-child(5) { animation-duration: 1.05s; animation-delay: -.7s; }
+@keyframes ovEq { 0%, 100% { transform: scaleY(.22); } 50% { transform: scaleY(1); } }
+@keyframes ovSheen { 0%, 55% { transform: translateX(-130%); } 100% { transform: translateX(130%); } }
+
+/* ================= дизайны ================= */
+
+/* Минимал: чистый текст, мягкая тень */
+.ov[data-theme="minimal"] .ov-lyrics { filter: drop-shadow(0 .04em .18em rgba(0,0,0,.7)); }
+
+/* Стекло: жидкое стекло с бликом и градиентной кромкой */
+.ov[data-theme="glass"] .ov-card {
+  padding: .55em 1.05em .65em; border-radius: calc(var(--fs) * .7); overflow: hidden;
+  background: linear-gradient(145deg, rgba(255,255,255,.17), rgba(255,255,255,.04) 55%, rgba(255,255,255,.09)), rgba(16,16,26,var(--bg));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.07), inset 0 0 2em rgba(255,255,255,.05), 0 .7em 2.2em rgba(0,0,0,.5);
+}
+.ov[data-theme="glass"] .ov-card::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: linear-gradient(145deg, rgba(255,255,255,.8), rgba(255,255,255,.08) 35%, rgba(255,255,255,.04) 65%, rgba(255,255,255,.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.ov[data-theme="glass"] .ov-card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-130%);
+  background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,.16) 50%, transparent 60%); animation: ovSheen 7s ease-in-out infinite;
+}
+
+/* Караоке: жирный контур, слова заливаются цветом */
+.ov[data-theme="karaoke"] .ov-line { font-weight: 900; text-transform: uppercase; letter-spacing: .01em; }
+.ov[data-theme="karaoke"] .ov-lyrics {
+  filter: drop-shadow(.045em 0 0 #000) drop-shadow(-.045em 0 0 #000) drop-shadow(0 .045em 0 #000) drop-shadow(0 -.045em 0 #000) drop-shadow(0 .1em .14em rgba(0,0,0,.55));
+}
+.ov[data-theme="karaoke"] .ov-line.cur .ov-w { --uns: #fff; }
+.ov[data-theme="karaoke"][data-words="0"] .ov-line.cur .ov-w { color: var(--acc); }
+
+/* Неон: пульсирующая рамка и свечение */
+.ov[data-theme="neon"] .ov-card {
+  padding: .5em 1em .6em; border-radius: calc(var(--fs) * .45);
+  background: radial-gradient(120% 140% at 50% 0%, color-mix(in srgb, var(--acc) 14%, transparent), transparent 60%), rgba(5,7,14,var(--bg));
+  box-shadow: inset 0 0 0 2px var(--acc), 0 0 .5em var(--acc), 0 0 1.8em color-mix(in srgb, var(--acc) 55%, transparent), inset 0 0 1.2em color-mix(in srgb, var(--acc) 24%, transparent);
+  animation: ovNeon 3.4s ease-in-out infinite;
+}
+@keyframes ovNeon { 50% { box-shadow: inset 0 0 0 2px var(--acc), 0 0 .3em var(--acc), 0 0 1em color-mix(in srgb, var(--acc) 40%, transparent), inset 0 0 .7em color-mix(in srgb, var(--acc) 16%, transparent); } }
+.ov[data-theme="neon"] .ov-line.cur { filter: drop-shadow(0 0 .22em color-mix(in srgb, var(--acc) 85%, transparent)); }
+.ov[data-theme="neon"] .ov-line.cur .ov-w { --uns: color-mix(in srgb, var(--acc) 28%, transparent); }
+.ov[data-theme="neon"][data-words="0"] .ov-line.cur .ov-w { color: var(--acc); }
+
+/* Субтитры: одна строка внизу */
+.ov[data-theme="subtitles"] { align-items: flex-end; padding-bottom: 3%; }
+.ov[data-theme="subtitles"] .ov-line:not(.cur), .ov[data-theme="subtitles"] .ov-head { display: none !important; }
+.ov[data-theme="subtitles"] .ov-lyrics { font-size: calc(var(--fs) * .62); }
+.ov[data-theme="subtitles"] .ov-line { font-weight: 600; letter-spacing: 0; }
+.ov[data-theme="subtitles"] .ov-card { padding: .25em .8em .32em; border-radius: .25em; background: rgba(0,0,0,var(--bg)); box-shadow: 0 .3em 1em rgba(0,0,0,.35); }
+
+/* Терминал: строки развёртки, мигающий курсор */
+.ov[data-theme="terminal"] { --ff: Consolas, "Cascadia Mono", "Courier New", monospace; }
+.ov[data-theme="terminal"] .ov-line { font-weight: 600; letter-spacing: 0; }
+.ov[data-theme="terminal"] .ov-card { padding: .55em 1em .65em; border-radius: .35em; overflow: hidden; background: rgba(2,10,4,var(--bg)); box-shadow: inset 0 0 0 1px var(--acc), 0 0 1.4em color-mix(in srgb, var(--acc) 32%, transparent); }
+.ov[data-theme="terminal"] .ov-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.04) 0 1px, transparent 1px 3px); }
+.ov[data-theme="terminal"] .ov-line.cur::before { content: "> "; color: var(--acc); }
+.ov[data-theme="terminal"] .ov-line.cur::after { content: "█"; color: var(--acc); margin-left: .15em; animation: ovBlink 1s steps(2) infinite; }
+.ov[data-theme="terminal"] .ov-line.cur .ov-w { --uns: color-mix(in srgb, var(--acc) 32%, transparent); --sung: var(--acc); }
+@keyframes ovBlink { 50% { opacity: 0; } }
+
+/* Плеер: обложка со свечением, название, эквалайзер, прогресс */
+.ov[data-theme="card"] .ov-card {
+  display: grid; grid-template-columns: auto 1fr; column-gap: 1em; row-gap: .45em; align-items: center; justify-items: start; text-align: left;
+  padding: .75em 1.1em .95em .75em; border-radius: calc(var(--fs) * .6);
+  background: linear-gradient(145deg, rgba(255,255,255,.11), rgba(255,255,255,.02)), rgba(12,12,18,var(--bg));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.32), inset 0 0 0 1px rgba(255,255,255,.1), 0 .7em 2em rgba(0,0,0,.5);
+}
+.ov[data-theme="card"] .ov-head { display: contents; }
+.ov[data-theme="card"] .ov-coverbox { display: block; grid-row: 1 / 3; width: calc(var(--fs) * 2.2); height: calc(var(--fs) * 2.2); border-radius: calc(var(--fs) * .3); box-shadow: 0 0 2em color-mix(in srgb, var(--acc) 35%, transparent), 0 .4em 1.2em rgba(0,0,0,.5); }
+.ov[data-theme="card"] .ov-meta { display: flex; align-self: end; font-size: calc(var(--fs) * .42); padding-right: 3em; }
+.ov[data-theme="card"] .ov-lyrics { grid-column: 2; align-self: start; font-size: calc(var(--fs) * .72); }
+.ov[data-theme="card"] .ov-line.p2, .ov[data-theme="card"] .ov-line.p1 { display: none; }
+.ov[data-theme="card"] .ov-eq { display: flex; position: absolute; right: 1.1em; top: .9em; font-size: calc(var(--fs) * .4); }
+.ov[data-theme="card"] .ov-bar { display: block; grid-column: 1 / -1; width: 100%; height: .22em; font-size: calc(var(--fs) * .3); border-radius: 1em; background: rgba(255,255,255,.16); overflow: hidden; }
+.ov[data-theme="card"] .ov-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--acc) 55%, transparent), var(--acc)); box-shadow: 0 0 .8em var(--acc); }
+
+/* Капсула: как плашка на панели задач */
+.ov[data-theme="capsule"] .ov-line:not(.cur), .ov[data-theme="capsule"] .ov-head { display: none !important; }
+.ov[data-theme="capsule"] .ov-card {
+  flex-direction: row; align-items: center; gap: .55em; padding: .3em 1em .38em .45em; border-radius: 999px;
+  background: linear-gradient(145deg, rgba(36,36,46,var(--bg)), rgba(10,10,14,var(--bg)));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.32), inset 0 0 0 1px rgba(255,255,255,.1), 0 .5em 1.4em rgba(0,0,0,.5);
+}
+.ov[data-theme="capsule"] .ov-lyrics { font-size: calc(var(--fs) * .6); }
+.ov[data-theme="capsule"] .ov-line { font-weight: 700; letter-spacing: -.01em; }
+.ov[data-theme="capsule"] .ov-moon {
+  display: block; flex: none; width: calc(var(--fs) * .78); height: calc(var(--fs) * .78); border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff, #aab3c6 40%, #2b2f3a 85%);
+  box-shadow: 0 0 1em color-mix(in srgb, var(--acc) 60%, transparent); animation: ovFloat 5s ease-in-out infinite;
+}
+@keyframes ovFloat { 50% { transform: translateY(-.08em) rotate(6deg); } }
+.ov[data-theme="capsule"] .ov-line.cur .ov-w { --sung: var(--acc); }
+
+/* Аврора: живой переливающийся градиент */
+.ov[data-theme="aurora"] .ov-card { padding: .6em 1.1em .7em; border-radius: calc(var(--fs) * .7); overflow: hidden; background: rgba(8,10,22,var(--bg)); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 .7em 2.2em rgba(0,0,0,.5); }
+.ov[data-theme="aurora"] .ov-aurora { display: block; position: absolute; inset: -40%; z-index: 0; opacity: .8; }
+.ov[data-theme="aurora"] .ov-aurora i { position: absolute; width: 60%; height: 70%; border-radius: 50%; will-change: transform; animation: ovDrift 9s ease-in-out infinite alternate; }
+.ov[data-theme="aurora"] .ov-aurora i:nth-child(1) { left: 5%; top: 5%; background: radial-gradient(closest-side, var(--acc), transparent); }
+.ov[data-theme="aurora"] .ov-aurora i:nth-child(2) { right: 0; top: 20%; background: radial-gradient(closest-side, color-mix(in srgb, var(--acc) 40%, #7a5cff), transparent); animation-duration: 12s; animation-delay: -4s; }
+.ov[data-theme="aurora"] .ov-aurora i:nth-child(3) { left: 25%; bottom: -5%; background: radial-gradient(closest-side, color-mix(in srgb, var(--acc) 35%, #ff6ad5), transparent); animation-duration: 15s; animation-delay: -8s; }
+@keyframes ovDrift { to { transform: translate(18%, -14%) scale(1.25); } }
+.ov[data-theme="aurora"] .ov-card > :not(.ov-aurora) { position: relative; z-index: 1; }
+.ov[data-theme="aurora"] .ov-lyrics { filter: drop-shadow(0 .04em .2em rgba(0,0,0,.55)); }
+
+/* Винил: вращающаяся пластинка */
+.ov[data-theme="vinyl"] .ov-card {
+  flex-direction: row; align-items: center; gap: 1em; padding: .7em 1.3em .7em .7em; border-radius: calc(var(--fs) * 1.4);
+  background: linear-gradient(145deg, rgba(255,255,255,.1), rgba(255,255,255,.02)), rgba(14,12,12,var(--bg));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 0 0 1px rgba(255,255,255,.1), 0 .7em 2em rgba(0,0,0,.5); text-align: left;
+}
+.ov[data-theme="vinyl"] .ov-head { display: contents; }
+.ov[data-theme="vinyl"] .ov-meta { display: none; }
+.ov[data-theme="vinyl"] .ov-coverbox {
+  display: block; position: relative; flex: none; width: calc(var(--fs) * 2.3); height: calc(var(--fs) * 2.3); border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle, #1a1a1a 0 28%, #0c0c0c 29%); box-shadow: 0 .3em 1em rgba(0,0,0,.6), 0 0 0 .08em #000; animation: ovSpin 9s linear infinite;
+}
+.ov[data-theme="vinyl"] .ov-cover { position: absolute; inset: 24%; width: 52%; height: 52%; border-radius: 50%; }
+.ov[data-theme="vinyl"] .ov-coverbox::before { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 .16em, rgba(255,255,255,.07) .16em .19em); pointer-events: none; }
+.ov[data-theme="vinyl"] .ov-coverbox::after { content: ""; position: absolute; left: 50%; top: 50%; z-index: 3; width: 6%; height: 6%; border-radius: 50%; background: #05060a; transform: translate(-50%, -50%); box-shadow: 0 0 0 .05em rgba(255,255,255,.25); }
+@keyframes ovSpin { to { transform: rotate(360deg); } }
+.ov[data-theme="vinyl"] .ov-lyrics { font-size: calc(var(--fs) * .72); align-items: flex-start; }
+.ov[data-theme="vinyl"] .ov-line.p2, .ov[data-theme="vinyl"] .ov-line.p1 { display: none; }
+
+/* Эквалайзер: пульсирующие столбики и строка */
+.ov[data-theme="equalizer"] .ov-card {
+  flex-direction: row; align-items: center; gap: .7em; padding: .6em 1.2em .7em .9em; border-radius: calc(var(--fs) * .6);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--acc) 16%, transparent), transparent 40%), rgba(10,10,16,var(--bg));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 0 0 1px rgba(255,255,255,.1), 0 .6em 1.8em rgba(0,0,0,.5);
+}
+.ov[data-theme="equalizer"] .ov-eq { display: flex; flex: none; font-size: calc(var(--fs) * 1.1); }
+.ov[data-theme="equalizer"] .ov-line:not(.cur) { display: none !important; }
+.ov[data-theme="equalizer"] .ov-lyrics { font-size: calc(var(--fs) * .66); }
+.ov[data-theme="equalizer"] .ov-line.cur .ov-w { --sung: var(--acc); }

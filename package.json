@@ -1,0 +1,74 @@
+{
+  "name": "moontext",
+  "version": "0.3.0",
+  "description": "MoonText — синхронизированные тексты песен для Windows",
+  "author": "XanorCODE",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "icons": "node tools/make-icons.js",
+    "dist": "electron-builder --win nsis",
+    "pack": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.moontext.desktop",
+    "productName": "MoonText",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "main/**",
+      "src/**",
+      "native/**",
+      "build/icon.png",
+      "build/tray.png"
+    ],
+    "asarUnpack": [
+      "native/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "shortcutName": "MoonText",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "MoonText-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "XanorCODE",
+        "repo": "moontext",
+        "releaseType": "release"
+      }
+    ],
+    "copyright": "© XanorCODE"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/XanorCODE/moontext.git"
+  },
+  "license": "MIT"
+}

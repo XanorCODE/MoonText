@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, net, Tray, Menu, nativeImage, clipboard, shell } = require('electron');
+const { app, nativeTheme, BrowserWindow, ipcMain, screen, net, Tray, Menu, nativeImage, clipboard, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
@@ -8,6 +8,7 @@ const { StreamServer } = require('./main/stream');
 const { MediaWatcher } = require('./main/media');
 
 const DEFAULTS = {
+  appTheme: 'dark',   // dark | light | auto — тема окна программы
   autostart: false,
   showPill: true,
   wordAnim: true,
@@ -108,15 +109,27 @@ function broadcast(msg) {
 }
 
 /* ---------- окна ---------- */
+/** Тема окна с учётом режима «как в системе». */
+const resolvedTheme = () => (settings.appTheme === 'auto' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : settings.appTheme);
+
+/** Кнопки окна (свернуть/закрыть) и подложка подстраиваются под тему. */
+function applyChrome() {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  const light = resolvedTheme() === 'light';
+  mainWin.setBackgroundColor(light ? '#eef0f6' : '#000000');
+  mainWin.setTitleBarOverlay({ color: '#00000000', symbolColor: light ? '#12141c' : '#ffffff', height: 44 });
+}
+nativeTheme.on('updated', () => { if (settings.appTheme === 'auto') applyChrome(); });
+
 function createMain() {
   mainWin = new BrowserWindow({
     width: 1180, height: 760, minWidth: 960, minHeight: 620,
-    backgroundColor: '#000000',
+    backgroundColor: resolvedTheme() === 'light' ? '#eef0f6' : '#000000',
     title: 'MoonText',
     icon: path.join(__dirname, 'build', 'icon.png'),
     show: !startHidden,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#00000000', symbolColor: '#ffffff', height: 44 },
+    titleBarOverlay: { color: '#00000000', symbolColor: resolvedTheme() === 'light' ? '#12141c' : '#ffffff', height: 44 },
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true },
   });
   mainWin.setMenuBarVisibility(false);
@@ -391,7 +404,9 @@ ipcMain.handle('update:check', () => {
 ipcMain.handle('update:install', () => {
   if (upd.state !== 'ready') return;
   quitting = true;
-  autoUpdater.quitAndInstall();
+  flushSettings();
+  // тихая установка поверх текущей и сразу запуск новой версии — без окна мастера установки
+  autoUpdater.quitAndInstall(true, true);
 });
 
 /* ---------- IPC ---------- */
@@ -418,6 +433,7 @@ function applySettingsPatch(patch) {
   if ('showPill' in patch) { syncPill(); tray?.setContextMenu(buildTrayMenu()); }
   if ('pillPos' in patch || 'pillOffset' in patch) placePill();
   if ('hideFullscreen' in patch) updatePillVisibility();
+  if ('appTheme' in patch) applyChrome();
   if ('streamEnabled' in patch || 'streamPort' in patch) syncStream();
   broadcast({ type: 'settings', settings });
   return settings;

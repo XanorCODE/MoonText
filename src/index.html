@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MoonText</title>
+<script src="theme-boot.js"></script>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="overlay.css">
 </head>
@@ -278,10 +279,16 @@
     <section class="page" id="p-set">
       <header class="page-head" data-s style="--i:0">
         <h2>Настройки</h2>
-        <p>MoonText 0.1 · макет</p>
+        <p>Тема, автозапуск, источники музыки и обновления</p>
       </header>
 
       <div class="cards one">
+        <div class="card glass" data-s style="--i:1">
+          <div class="card-t big">Оформление</div>
+          <div class="row"><div><div class="card-t">Тема программы</div><div class="card-d">Тёмная, светлая или как в настройках Windows</div></div>
+            <div class="seg" id="themeSeg"><i class="seg-ind"></i><button class="active">Тёмная</button><button>Светлая</button><button>Как в системе</button></div></div>
+        </div>
+
         <div class="card glass" data-s style="--i:1">
           <div class="card-t big">Общие</div>
           <div class="row"><div><div class="card-t">Запускать вместе с Windows</div><div class="card-d">Автозапуск при входе в систему</div></div><label class="sw"><input type="checkbox" id="setAutostart"><i></i></label></div>

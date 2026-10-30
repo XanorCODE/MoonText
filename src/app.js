@@ -9,7 +9,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 /* ---------- состояние ---------- */
-let settings = { autostart: false, hideFullscreen: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
+let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run',
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
@@ -341,6 +341,17 @@ function save(patch) {
 }
 
 const setModeSeg = initSeg($('#modeSeg'), (b, i) => save({ wordAnim: i === 0 }));
+/* тема программы: тёмная / светлая / как в системе */
+const THEMES = ['dark', 'light', 'auto'];
+const setThemeSeg = initSeg($('#themeSeg'), (b, i) => save({ appTheme: THEMES[i] }));
+const systemLight = matchMedia('(prefers-color-scheme: light)');
+function applyTheme() {
+  const t = settings.appTheme === 'auto' ? (systemLight.matches ? 'light' : 'dark') : settings.appTheme;
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('theme', t); } catch { /* нет хранилища */ }
+}
+systemLight.addEventListener('change', () => { if (settings.appTheme === 'auto') applyTheme(); });
+
 const setStyleSeg = initSeg($('#styleSeg'), (b, i) => save({ pillSize: i }));
 const setRoundSeg = initSeg($('#roundSeg'), (b, i) => save({ pillRound: i === 0 }));
 const POS = ['left', 'center', 'right'];
@@ -362,6 +373,8 @@ const offLabel = ms => `Сдвиг: ${ms > 0 ? '+' : ''}${(ms / 1000).toFixed(1)
 
 function applySettings(s, local) {
   settings = { ...settings, ...s };
+  applyTheme();
+  setThemeSeg(Math.max(0, THEMES.indexOf(settings.appTheme)));
   lyricsEl.classList.toggle('mode-word', settings.wordAnim);
   lyricsEl.classList.toggle('mode-line', !settings.wordAnim);
   $('#modeChip').textContent = settings.wordAnim ? 'По словам' : 'По строкам';

@@ -15,7 +15,7 @@ svg { width: 22px; height: 22px; flex: none; }
 
 /* ---------- фон ---------- */
 .bg { position: fixed; inset: 0; background: #000; overflow: hidden; }
-.orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55; will-change: transform; }
+.orb { position: absolute; border-radius: 50%; opacity: .7; will-change: transform; }   /* градиент уже мягкий — blur() не нужен и грузил видеокарту */
 .o1 { width: 560px; height: 560px; left: -120px; top: -140px; background: radial-gradient(circle, rgba(150,170,255,.28), transparent 65%); animation: drift1 26s ease-in-out infinite alternate; }
 .o2 { width: 620px; height: 620px; right: -180px; bottom: -200px; background: radial-gradient(circle, rgba(255,255,255,.17), transparent 65%); animation: drift2 32s ease-in-out infinite alternate; }
 .o3 { width: 420px; height: 420px; left: 42%; top: 30%; background: radial-gradient(circle, rgba(120,140,200,.16), transparent 65%); animation: drift3 38s ease-in-out infinite alternate; }
@@ -255,7 +255,7 @@ svg { width: 22px; height: 22px; flex: none; }
 .rm { width: 34px; height: 34px; border-radius: 10px; flex: none; position: relative; background: radial-gradient(circle at 70% 25%, #2a3040, #05060a 75%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
 .rm::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: radial-gradient(circle at 30% 34%, #fff, #8d96ad); -webkit-mask: radial-gradient(circle at calc(var(--ph) + 30%) 38%, transparent 0 44%, #000 45%); mask: radial-gradient(circle at calc(var(--ph) + 30%) 38%, transparent 0 44%, #000 45%); }
 
-.lyr-glow { position: absolute; left: -60px; top: 14%; width: 520px; height: 300px; border-radius: 50%; background: radial-gradient(closest-side, rgba(170,185,255,.16), transparent); filter: blur(30px); animation: glowp 5s ease-in-out infinite; pointer-events: none; }
+.lyr-glow { position: absolute; left: -60px; top: 14%; width: 520px; height: 300px; border-radius: 50%; background: radial-gradient(closest-side, rgba(170,185,255,.16), transparent); animation: glowp 5s ease-in-out infinite; pointer-events: none; }
 @keyframes glowp { 50% { opacity: .45; transform: scale(1.18) translateX(30px); } }
 .lyr-tools { z-index: 6; }
 
@@ -550,3 +550,11 @@ html[data-theme="light"] .upd-prog u { background: #12141c; box-shadow: none; }
 
 /* переключатель темы */
 .theme-seg-wrap { flex: none; }
+
+/* строки настроек переносятся, если не помещаются (узкое окно, большой шрифт Windows) */
+.row { flex-wrap: wrap; }
+.row > div:first-child { flex: 1 1 220px; min-width: 0; }
+.card { min-width: 0; }
+.btn-row { flex-wrap: wrap; }
+
+.pill[data-eco="1"], .pill[data-eco="1"] * { transition: none !important; animation: none !important; }

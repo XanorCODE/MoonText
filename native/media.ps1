@@ -55,8 +55,10 @@ while ($true) {
           '^next$'   { $null = $s.TrySkipNextAsync() }
           '^prev$'   { $null = $s.TrySkipPreviousAsync() }
           '^seek:(.+)$' {
-            $sec = [double]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture)
-            $null = $s.TryChangePlaybackPositionAsync([long]($sec * 10000000))
+            $sec = 0.0
+            if ([double]::TryParse($Matches[1], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$sec) -and $sec -ge 0 -and $sec -lt 360000) {
+              $null = $s.TryChangePlaybackPositionAsync([long]($sec * 10000000))
+            }
           }
         }
       }

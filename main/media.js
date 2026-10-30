@@ -34,10 +34,12 @@ class MediaWatcher extends EventEmitter {
   /** Отладка без плеера: MOONTEXT_FAKE=1 npm start */
   fake() {
     const t0 = Date.now();
+    let extra = {};
+    try { extra = JSON.parse(process.env.MOONTEXT_FAKE_TRACK || '{}'); } catch { /* не JSON — игнорируем */ }
     this.timer = setInterval(() => {
       this.emit('message', {
         type: 'state', app: 'Spotify.exe', title: 'Bohemian Rhapsody', artist: 'Queen', album: 'A Night at the Opera',
-        status: 'Playing', pos: 0, dur: 354, updated: t0,
+        status: 'Playing', pos: 0, dur: 354, updated: t0, ...extra,
       });
     }, 400);
   }

@@ -34,6 +34,7 @@ const DEFAULTS = {
   pillOpacity: 94,
   pillMoon: true,
   pillRound: true,
+  pillEco: false,    // экономный режим: плашка без плавных переходов (почти не грузит процессор)
   pillMaxW: 320,
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
   pillPos: 'left',   // left | center | right
@@ -41,6 +42,42 @@ const DEFAULTS = {
 };
 
 let settings = { ...DEFAULTS };
+
+/* ---------- проверка настроек ---------- */
+// Всё, что приходит из файла настроек или от окна, проходит через cleanPatch: неизвестные ключи и недопустимые значения отбрасываются.
+const ENUMS = {
+  appTheme: ['dark', 'light', 'auto'],
+  pillAnim: ['run', 'fade', 'rise', 'pop', 'blur', 'fill'],
+  pillPos: ['left', 'center', 'right'],
+  pillSize: [0, 1, 2],
+  streamTheme: ['minimal', 'glass', 'karaoke', 'neon', 'subtitles', 'terminal', 'card', 'capsule', 'aurora', 'vinyl', 'equalizer'],
+  streamFont: ['sans', 'serif', 'mono', 'display'],
+  streamAlign: ['left', 'center', 'right'],
+  streamLines: [1, 3, 5],
+};
+const RANGES = {
+  offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
+  streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100],
+};
+const BOOLS = ['pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound'];
+const COLORS = ['pillAccent', 'streamAccent'];
+
+function cleanPatch(src) {
+  const out = {};
+  if (!src || typeof src !== 'object' || Array.isArray(src)) return out;
+  for (const key of Object.keys(DEFAULTS)) {
+    if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
+    const v = src[key];
+    if (ENUMS[key]) { if (ENUMS[key].includes(v)) out[key] = v; }
+    else if (RANGES[key]) {
+      const n = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
+      if (Number.isFinite(n)) out[key] = Math.round(Math.min(RANGES[key][1], Math.max(RANGES[key][0], n)));
+    }
+    else if (BOOLS.includes(key)) { if (typeof v === 'boolean') out[key] = v; }
+    else if (COLORS.includes(key)) { if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) out[key] = v.toLowerCase(); }
+  }
+  return out;
+}
 let settingsFile;
 let mainWin = null;
 let pillWin = null;
@@ -64,7 +101,7 @@ const snap = { track: null, state: null, cover: null, lyrics: null, none: true }
 
 /* ---------- настройки ---------- */
 function loadSettings() {
-  try { settings = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(settingsFile, 'utf8').replace(/^\uFEFF/, '')) }; } catch { /* первый запуск */ }
+  try { settings = { ...DEFAULTS, ...cleanPatch(JSON.parse(fs.readFileSync(settingsFile, 'utf8').replace(/^\uFEFF/, ''))) }; } catch { /* первый запуск или файл повреждён — берём значения по умолчанию */ }
 }
 let saveTimer = null;
 function saveSettings() {
@@ -92,7 +129,7 @@ const stream = new StreamServer(path.join(__dirname, 'src'), () => ({ type: 'ini
 stream.on('status', () => broadcast({ type: 'stream', status: stream.status }));
 async function syncStream() {
   if (settings.streamEnabled) await stream.start(settings.streamPort);
-  else stream.stop();
+  else await stream.stop();
   broadcast({ type: 'stream', status: stream.status });
 }
 
@@ -133,6 +170,9 @@ function createMain() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true },
   });
   mainWin.setMenuBarVisibility(false);
+  // масштаб не меняется: вёрстка рассчитана на 100%, а Ctrl+колесо/Ctrl+плюс её ломали
+  mainWin.webContents.on('zoom-changed', () => mainWin.webContents.setZoomLevel(0));
+  mainWin.webContents.on('did-finish-load', () => mainWin.webContents.setZoomLevel(0));
   mainWin.loadFile(path.join(__dirname, 'src', 'index.html'));
   // крестик сворачивает в трей, выйти можно из меню трея
   mainWin.on('close', e => {
@@ -421,11 +461,12 @@ ipcMain.handle('stream:open', () => {
   if (stream.status.running) shell.openExternal(`http://localhost:${stream.status.port}/overlay`);
 });
 ipcMain.handle('control', (_, cmd) => {
-  if (/^(toggle|play|pause|next|prev|seek:[\d.]+)$/.test(cmd)) media.send(cmd);
+  if (typeof cmd === 'string' && /^(toggle|play|pause|next|prev|seek:\d{1,6}(\.\d{1,3})?)$/.test(cmd)) media.send(cmd);
 });
 ipcMain.handle('library', () => lrclib.library());
-function applySettingsPatch(patch) {
-  if ('streamPort' in patch) patch.streamPort = Math.min(65535, Math.max(1024, Math.round(+patch.streamPort) || DEFAULTS.streamPort));
+function applySettingsPatch(rawPatch) {
+  const patch = cleanPatch(rawPatch);
+  if (!Object.keys(patch).length) return settings;
   settings = { ...settings, ...patch };
   saveSettings();
   // в режиме разработки автозапуск зарегистрировал бы голый electron.exe без приложения
@@ -442,6 +483,7 @@ ipcMain.handle('settings', (_, patch) => applySettingsPatch(patch));
 
 /* ---------- старт ---------- */
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);     // убираем стандартное меню: вместе с ним уходят горячие клавиши масштаба, перезагрузки и DevTools
   settingsFile = path.join(app.getPath('userData'), 'settings.json');
   loadSettings();
   lrclib.init(app.getPath('userData'), (url, opts) => net.fetch(url, opts));

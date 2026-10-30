@@ -10,7 +10,7 @@ const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2,
 
 /* ---------- состояние ---------- */
 let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
-  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run',
+  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
 let track = null;
@@ -113,8 +113,8 @@ function setTrack(t) {
   track = t;
   dur = t.dur || 0;
   player.classList.remove('idle');
-  $('#trTitle').textContent = t.title || 'Без названия';
-  $('#trArtist').textContent = t.artist || 'Неизвестный исполнитель';
+  $('#trTitle').textContent = (t.title || '').trim() || 'Без названия';
+  $('#trArtist').textContent = (t.artist || '').trim() || 'Неизвестный исполнитель';
   $('#srcName').textContent = srcName(t.app);
   $('#tDur').textContent = dur ? fmt(dur) : '–:––';
   $('.cover').classList.remove('has-art');
@@ -162,9 +162,10 @@ function pushRecent(t) {
   try { localStorage.setItem('recent', JSON.stringify(r)); } catch { /* нет хранилища */ }
   renderRecent(r);
 }
-function hueOf(s) { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; }
+function hueOf(s) { let h = 0; for (const ch of String(s ?? '')) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; }
 function renderRecent(r) {
   if (!r) { try { r = JSON.parse(localStorage.getItem('recent') || '[]'); } catch { r = []; } }
+  r = (Array.isArray(r) ? r : []).filter(x => x && typeof x.title === 'string').slice(0, 3).map(x => ({ title: x.title, artist: typeof x.artist === 'string' ? x.artist : '' }));
   const box = $('#recentBox');
   $$('.rec', box).forEach(n => n.remove());
   if (!r.length) { box.insertAdjacentHTML('beforeend', '<div class="rec empty">Пока пусто</div>'); return; }
@@ -384,6 +385,7 @@ function applySettings(s, local) {
   pill.style.setProperty('--pdur', (1.3 - settings.speed * 0.011).toFixed(2) + 's');
   E.applyPillVars(pill, settings);
   pill.dataset.anim = settings.pillAnim || 'run';
+  pill.dataset.eco = settings.pillEco ? '1' : '0';
   $$('#animGrid .anim-chip').forEach(b => b.classList.toggle('on', b.dataset.a === (settings.pillAnim || 'run')));
   setRoundSeg(settings.pillRound ? 0 : 1);
   setPosSeg(Math.max(0, POS.indexOf(settings.pillPos)));
@@ -397,6 +399,7 @@ function applySettings(s, local) {
     $('#setPa').value = settings.pillOpacity;
     $('#setMaxW').value = settings.pillMaxW;
     $('#setMoon').checked = settings.pillMoon;
+    $('#setEco').checked = settings.pillEco;
     $('#setFs').checked = settings.hideFullscreen;
     $('#setEdge').value = settings.pillOffset;
     $('#setAutostart').checked = settings.autostart;
@@ -422,7 +425,7 @@ $('#setSpeed').addEventListener('change', e => save({ speed: +e.target.value }))
 /* сброс оформления плашки (значения совпадают с DEFAULTS в main.js) */
 const PILL_DEFAULTS = {
   pillSize: 1, adaptive: true, speed: 60,
-  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run',
+  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false,
 };
 $('#pillReset').addEventListener('click', () => {
   save(PILL_DEFAULTS);
@@ -432,6 +435,7 @@ $('#pillReset').addEventListener('click', () => {
 $('#setPa').addEventListener('input', e => save({ pillOpacity: +e.target.value }));
 $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value }));
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
+$('#setEco').addEventListener('change', e => save({ pillEco: e.target.checked }));
 $('#setMoon').addEventListener('change', e => save({ pillMoon: e.target.checked }));
 $('#setEdge').addEventListener('change', e => save({ pillOffset: +e.target.value }));
 
@@ -456,8 +460,12 @@ const DEMO_LIB = [
   { title: 'Лунный свет', artist: 'MoonText Demo' }, { title: 'Ночной город', artist: 'Неон' }, { title: 'Тихая вода', artist: 'Аврора' },
   { title: 'Полночь', artist: 'Сириус' }, { title: 'Дыхание', artist: 'Орбита' }, { title: 'Эхо', artist: 'Лира' },
 ];
+let libToken = 0;
 async function loadLibrary() {
-  const list = hasMoon ? await window.moon.library() : DEMO_LIB;
+  const token = ++libToken;
+  let list = hasMoon ? await window.moon.library() : DEMO_LIB;
+  if (token !== libToken) return;                       // пришёл более свежий запрос
+  list = (Array.isArray(list) ? list : []).filter(x => x && typeof x.title === 'string');
   const grid = $('#libGrid');
   if (!list.length) {
     grid.innerHTML = '<div class="card glass" style="grid-column:1/-1"><div class="card-t">Пока пусто</div><div class="card-d">Тексты появятся здесь, когда MoonText найдёт их для проигранных треков.</div></div>';

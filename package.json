@@ -1,6 +1,6 @@
 {
   "name": "moontext",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "MoonText — синхронизированные тексты песен для Windows",
   "author": "XanorCODE",
   "main": "main.js",

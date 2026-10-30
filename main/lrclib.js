@@ -77,20 +77,31 @@ async function fetchLyrics({ title, artist, album, dur }) {
   };
 }
 
+/** Приводит найденный текст (из сети или из кэша) к безопасному виду: чужие или битые данные не должны ломать интерфейс. */
+function normalizeResult(r) {
+  if (!r || typeof r !== 'object' || r.found !== true) return null;
+  const lines = Array.isArray(r.lines)
+    ? r.lines.filter(x => Array.isArray(x) && Number.isFinite(x[0]) && typeof x[1] === 'string' && x[1].trim()).map(x => [x[0], x[1]]).slice(0, 5000)
+    : [];
+  const plain = Array.isArray(r.plain) ? r.plain.filter(x => typeof x === 'string').slice(0, 3000) : [];
+  if (!r.instrumental && !lines.length && !plain.length) return null;          // пустой «найденный» текст — это не текст
+  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: 'LRCLIB' };
+}
+
 async function getLyrics(raw) {
   const track = { ...raw, title: raw.title || '', artist: raw.artist || '', album: raw.album || '' };
   const file = cacheFile(track.artist, track.title);
   try {
-    const cached = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return cached.result;
-  } catch { /* нет в кэше */ }
+    const cached = normalizeResult(JSON.parse(fs.readFileSync(file, 'utf8')).result);
+    if (cached) return cached;
+  } catch { /* нет в кэше или файл повреждён — ищем заново */ }
 
-  const result = await fetchLyrics(track);
-  if (result.found) {
-    try {
-      fs.writeFileSync(file, JSON.stringify({ title: track.title, artist: track.artist, saved: Date.now(), result }));
-    } catch { /* кэш необязателен */ }
-  }
+  const fetched = await fetchLyrics(track);
+  const result = fetched.found ? normalizeResult(fetched) : null;
+  if (!result) return { found: false };
+  try {
+    fs.writeFileSync(file, JSON.stringify({ title: track.title, artist: track.artist, saved: Date.now(), result }));
+  } catch { /* кэш необязателен */ }
   return result;
 }
 
@@ -101,7 +112,8 @@ function library() {
       .map(f => {
         try {
           const j = JSON.parse(fs.readFileSync(path.join(cacheDir, f), 'utf8'));
-          return { title: j.title, artist: j.artist, saved: j.saved, synced: !!j.result?.synced };
+          if (typeof j.title !== 'string' || !normalizeResult(j.result)) return null;       // посторонние и битые файлы не показываем
+          return { title: j.title.slice(0, 200), artist: typeof j.artist === 'string' ? j.artist.slice(0, 200) : '', saved: Number.isFinite(j.saved) ? j.saved : 0, synced: !!j.result.synced };
         } catch { return null; }
       })
       .filter(Boolean)

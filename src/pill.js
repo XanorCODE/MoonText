@@ -25,6 +25,7 @@ function applySettings(s) {
   pill.style.setProperty('--dur', (1.3 - settings.speed * 0.011).toFixed(2) + 's');
   E.applyPillVars(pill, settings);
   pill.dataset.anim = settings.pillAnim || 'run';
+  pill.dataset.eco = settings.pillEco ? '1' : '0';
   document.body.dataset.pos = settings.pillPos;
   curWord = -2;
   if (mode) { const m = mode; mode = null; enter(m); }     // пересчитать ширину под новый размер
@@ -40,7 +41,7 @@ const moonW = () => (settings.pillMoon ? parseFloat(getComputedStyle(moonEl).wid
 const padX = () => (settings.pillMoon ? 8 : 16);
 /** ширина области под текст при заданной ширине плашки */
 const innerW = w => w - padX() * 2 - (settings.pillMoon ? moonW() + 10 : 0);
-const clampW = w => Math.min(Math.max(w, 150), settings.pillMaxW);
+const clampW = w => Math.min(Math.max(Number.isFinite(w) ? w : 150, 150), Number(settings.pillMaxW) || 320);
 
 function decide() {
   if (!track || !clock.playing) return 'idle';
@@ -85,6 +86,7 @@ function showText(text) {
     } else {
       trackEl.style.transform = 'translateX(0)';
       const delta = tw - viewW + 12;
+      if (!Number.isFinite(delta)) return;
       marquee = trackEl.animate(
         [{ transform: 'translateX(0)' }, { transform: 'translateX(0)', offset: .2 }, { transform: `translateX(${-delta}px)`, offset: .8 }, { transform: `translateX(${-delta}px)` }],
         { duration: Math.max(4000, delta * 40), iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' },
@@ -156,7 +158,18 @@ function frame() {
     // «Заливка»: прогресс текущего слова обновляется каждый кадр
     if (settings.pillAnim === 'fill' && li === curLine && wi >= 0) lines[li].words[wi].el?.style.setProperty('--p', p.toFixed(3));
   }
-  requestAnimationFrame(frame);
+  schedule();
+}
+
+/**
+ * Частота опроса зависит от того, что на плашке: статичный текст проверяем редко,
+ * бегущую строку — 25 раз в секунду, «Заливку» слова — на каждый кадр. Постоянные 60 к/с грузили процессор и видеокарту.
+ */
+function schedule() {
+  if (mode === 'lyrics') {
+    if (settings.pillAnim === 'fill') requestAnimationFrame(frame); else setTimeout(frame, 40);
+  } else if (mode === 'title' && lyricsState === 'ok') setTimeout(frame, 100);   // ждём начала первой строки
+  else setTimeout(frame, 250);
 }
 
 function onMsg(m) {
@@ -188,7 +201,7 @@ function onMsg(m) {
     if (init.state) { clock.dur = init.state.dur; clock.update(init.state); }
     if (init.lyrics) onMsg({ type: 'lyrics', ...init.lyrics });
   }
-  requestAnimationFrame(frame);
+  frame();
   // два кадра спустя первая отрисовка гарантированно выполнена — можно показывать окно
   requestAnimationFrame(() => requestAnimationFrame(() => window.moon.pillReady()));
 })();

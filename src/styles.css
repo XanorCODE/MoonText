@@ -558,3 +558,7 @@ html[data-theme="light"] .upd-prog u { background: #12141c; box-shadow: none; }
 .btn-row { flex-wrap: wrap; }
 
 .pill[data-eco="1"], .pill[data-eco="1"] * { transition: none !important; animation: none !important; }
+
+/* эффект «волна»: слова плавно качаются по очереди, как бегущая волна (включается в настройках плашки) */
+@keyframes pillWave { 0%, 100% { translate: 0 -.17em; } 50% { translate: 0 .17em; } }
+.pill[data-wave="1"][data-mode="lyrics"] .pill-track span { animation: pillWave 1.8s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.24s); }

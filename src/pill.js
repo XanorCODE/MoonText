@@ -10,7 +10,7 @@ const pill = document.getElementById('pill');
 const trackEl = document.getElementById('track');
 const moonEl = pill.querySelector('.moon');
 
-let settings = { offset: 0, pillSize: 1, adaptive: true, speed: 60, showPill: true, pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillAnim: 'run' };
+let settings = { offset: 0, pillSize: 1, adaptive: true, speed: 60, showPill: true, pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillAnim: 'run', pillWave: false, pillEco: false };
 let track = null, lines = [], lyricsState = 'none';       // none | loading | ok | notfound | plain
 const clock = new E.Clock();
 
@@ -26,6 +26,7 @@ function applySettings(s) {
   E.applyPillVars(pill, settings);
   pill.dataset.anim = settings.pillAnim || 'run';
   pill.dataset.eco = settings.pillEco ? '1' : '0';
+  pill.dataset.wave = settings.pillWave ? '1' : '0';
   document.body.dataset.pos = settings.pillPos;
   curWord = -2;
   if (mode) { const m = mode; mode = null; enter(m); }     // пересчитать ширину под новый размер
@@ -98,6 +99,7 @@ function showText(text) {
 function enter(next) {
   const prev = mode;
   mode = next;
+  pill.dataset.mode = next;
   if (marquee) { marquee.cancel(); marquee = null; }
   pill.classList.toggle('mini', next === 'mini');
   if (next === 'mini') {
@@ -116,9 +118,10 @@ function buildTrack(li) {
   swapTo(() => {
     if (idx !== curLine || mode !== 'lyrics') return;
     trackEl.innerHTML = '';
-    lines[idx].words.forEach(w => {
+    lines[idx].words.forEach((w, k) => {
       const s = document.createElement('span');
       s.textContent = w.text;
+      s.style.setProperty('--i', k);                // номер слова — сдвиг фазы волны
       w.el = s;
       trackEl.appendChild(s);
     });

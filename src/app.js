@@ -10,7 +10,7 @@ const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2,
 
 /* ---------- состояние ---------- */
 let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
-  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false,
+  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
 let track = null;
@@ -231,9 +231,10 @@ function buildPill(idx) {
   setTimeout(() => {
     if (!lines[idx] || pillLine !== idx) return;
     pillTrack.innerHTML = '';
-    lines[idx].words.forEach(w => {
+    lines[idx].words.forEach((w, k) => {
       const s = document.createElement('span');
       s.textContent = w.text;
+      s.style.setProperty('--i', k);
       w.pEl = s;
       pillTrack.appendChild(s);
     });
@@ -386,6 +387,8 @@ function applySettings(s, local) {
   E.applyPillVars(pill, settings);
   pill.dataset.anim = settings.pillAnim || 'run';
   pill.dataset.eco = settings.pillEco ? '1' : '0';
+  pill.dataset.wave = settings.pillWave ? '1' : '0';
+  pill.dataset.mode = 'lyrics';
   $$('#animGrid .anim-chip').forEach(b => b.classList.toggle('on', b.dataset.a === (settings.pillAnim || 'run')));
   setRoundSeg(settings.pillRound ? 0 : 1);
   setPosSeg(Math.max(0, POS.indexOf(settings.pillPos)));
@@ -400,6 +403,7 @@ function applySettings(s, local) {
     $('#setMaxW').value = settings.pillMaxW;
     $('#setMoon').checked = settings.pillMoon;
     $('#setEco').checked = settings.pillEco;
+    $('#setWave').checked = settings.pillWave;
     $('#setFs').checked = settings.hideFullscreen;
     $('#setEdge').value = settings.pillOffset;
     $('#setAutostart').checked = settings.autostart;
@@ -425,7 +429,7 @@ $('#setSpeed').addEventListener('change', e => save({ speed: +e.target.value }))
 /* сброс оформления плашки (значения совпадают с DEFAULTS в main.js) */
 const PILL_DEFAULTS = {
   pillSize: 1, adaptive: true, speed: 60,
-  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false,
+  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
 };
 $('#pillReset').addEventListener('click', () => {
   save(PILL_DEFAULTS);
@@ -435,6 +439,7 @@ $('#pillReset').addEventListener('click', () => {
 $('#setPa').addEventListener('input', e => save({ pillOpacity: +e.target.value }));
 $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value }));
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
+$('#setWave').addEventListener('change', e => save({ pillWave: e.target.checked }));
 $('#setEco').addEventListener('change', e => save({ pillEco: e.target.checked }));
 $('#setMoon').addEventListener('change', e => save({ pillMoon: e.target.checked }));
 $('#setEdge').addEventListener('change', e => save({ pillOffset: +e.target.value }));

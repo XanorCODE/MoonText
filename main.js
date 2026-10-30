@@ -34,6 +34,7 @@ const DEFAULTS = {
   pillOpacity: 94,
   pillMoon: true,
   pillRound: true,
+  pillWave: false,   // волна: слова на плашке качаются по очереди
   pillEco: false,    // экономный режим: плашка без плавных переходов (почти не грузит процессор)
   pillMaxW: 320,
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
@@ -59,7 +60,7 @@ const RANGES = {
   offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
   streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100],
 };
-const BOOLS = ['pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound'];
+const BOOLS = ['pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound'];
 const COLORS = ['pillAccent', 'streamAccent'];
 
 function cleanPatch(src) {

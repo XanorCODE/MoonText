@@ -32,23 +32,23 @@
   .pill.mini { gap: 0; padding: 0 8px; }
   .pill.gone { opacity: 0 !important; }
   .pill.mini .view { flex: 0; width: 0; opacity: 0; }
-  .track span { flex: none; margin-right: 7px; color: rgba(255,255,255,.4); transition: color .35s, transform .5s var(--spring), text-shadow .4s; }
+  .track span { flex: none; margin-right: 7px; color: rgba(255,255,255,.4); transition: transform .5s var(--spring); }
   .track span.done { color: rgba(255,255,255,.78); }
   .track span.cur { color: var(--acc, #fff); transform: scale(1.12); text-shadow: 0 0 14px color-mix(in srgb, var(--acc, #fff) 70%, transparent); }
 
 /* анимации текста плашки: data-anim = run | fade | rise | pop | blur | fill */
 @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
-.pill[data-anim="fade"] .track span { transition: opacity .5s, color .35s; }
+.pill[data-anim="fade"] .track span { transition: opacity .5s; }
 .pill[data-anim="fade"] .track span:not(.done):not(.cur):not(.static) { opacity: 0; }
-.pill[data-anim="rise"] .track span { transition: transform .6s var(--spring), opacity .45s, color .35s; }
+.pill[data-anim="rise"] .track span { transition: transform .6s var(--spring), opacity .45s; }
 .pill[data-anim="rise"] .track span:not(.done):not(.cur):not(.static) { opacity: 0; transform: translateY(.9em); }
 .pill[data-anim="rise"] .track span.cur { transform: translateY(-.06em) scale(1.06); }
-.pill[data-anim="pop"] .track span { transition: transform .5s var(--spring), color .3s, text-shadow .4s; }
+.pill[data-anim="pop"] .track span { transition: transform .5s var(--spring); }
 .pill[data-anim="pop"] .track span.cur { transform: scale(1.32); }
 .pill[data-anim="pop"] .track span.done { transform: scale(.92); }
-.pill[data-anim="blur"] .track span { transition: filter .55s, opacity .55s, color .35s; }
+.pill[data-anim="blur"] .track span { transition: filter .55s, opacity .55s; }
 .pill[data-anim="blur"] .track span:not(.done):not(.cur):not(.static) { filter: blur(5px); opacity: .55; }
-.pill[data-anim="fill"] .track span { transition: color .3s; }
+.pill[data-anim="fill"] .track span { transition: none; }
 .pill[data-anim="fill"] .track span.done { color: var(--acc, #fff); }
 .pill[data-anim="fill"] .track span.cur {
   transform: none; text-shadow: none; color: transparent;

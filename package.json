@@ -1,6 +1,6 @@
 {
   "name": "moontext",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "MoonText — синхронизированные тексты песен для Windows",
   "author": "XanorCODE",
   "main": "main.js",
@@ -61,7 +61,11 @@
         "releaseType": "release"
       }
     ],
-    "copyright": "© XanorCODE"
+    "copyright": "© XanorCODE",
+    "electronLanguages": [
+      "ru",
+      "en-US"
+    ]
   },
   "dependencies": {
     "electron-updater": "^6.8.11"

@@ -39,9 +39,11 @@ const es = new EventSource('/events');
 es.onmessage = e => { try { onMsg(JSON.parse(e.data)); } catch { /* битое сообщение */ } };
 
 (function frame() {
+  const live = !!track && clock.playing;
   if (settings) {
-    view.setPlaying(!!track && clock.playing);
+    view.setPlaying(live);
     view.tick(clock.now() + settings.offset / 1000, track?.dur || clock.dur || 0);
   }
-  requestAnimationFrame(frame);
+  // музыка не играет — оверлей скрыт, считать кадры 60 раз в секунду незачем
+  if (live) requestAnimationFrame(frame); else setTimeout(frame, 250);
 })();

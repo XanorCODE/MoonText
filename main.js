@@ -51,7 +51,7 @@ const ENUMS = {
   pillAnim: ['run', 'fade', 'rise', 'pop', 'blur', 'fill'],
   pillPos: ['left', 'center', 'right'],
   pillSize: [0, 1, 2],
-  streamTheme: ['minimal', 'glass', 'karaoke', 'neon', 'subtitles', 'terminal', 'card', 'capsule', 'aurora', 'vinyl', 'equalizer'],
+  streamTheme: ['minimal', 'glass', 'karaoke', 'neon', 'subtitles', 'terminal', 'card', 'capsule', 'aurora', 'vinyl', 'equalizer', 'pill'],
   streamFont: ['sans', 'serif', 'mono', 'display'],
   streamAlign: ['left', 'center', 'right'],
   streamLines: [1, 3, 5],

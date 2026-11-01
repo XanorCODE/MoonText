@@ -107,7 +107,16 @@ const SOURCES = [
   [/chrome|msedge|firefox|opera|brave|vivaldi|arc/i, 'Браузер'], [/vk/i, 'VK Музыка'],
   [/zunemusic|media ?player|music\.ui/i, 'Медиаплеер'], [/tidal/i, 'TIDAL'], [/deezer/i, 'Deezer'],
 ];
-const srcName = id => (SOURCES.find(([re]) => re.test(id || '')) || [0, (id || 'Windows').replace(/\.exe$/i, '')])[1];
+/** Системный идентификатор приложения → короткое читаемое имя: «com.squirrel.Telegram.Telegram» → «Telegram», «MyMusicPlayer_8wekyb3d8bbwe!App» → «My Music Player». */
+function friendlyApp(id) {
+  let n = String(id || '').trim().replace(/\.exe$/i, '').split('!')[0].replace(/_[a-z0-9]{8,}$/i, '');
+  if (n.includes('.')) n = n.split('.').filter(Boolean).pop() || n;
+  n = n.replace(/[_-]+/g, ' ').replace(/([a-zа-яё])([A-ZА-ЯЁ])/g, '$1 $2').replace(/\s+/g, ' ').trim();
+  if (!n) return 'Windows';
+  n = n[0].toUpperCase() + n.slice(1);
+  return n.length > 28 ? n.slice(0, 27).trimEnd() + '…' : n;
+}
+const srcName = id => (SOURCES.find(([re]) => re.test(id || '')) || [0, friendlyApp(id)])[1];
 
 function setTrack(t) {
   track = t;
@@ -116,6 +125,7 @@ function setTrack(t) {
   $('#trTitle').textContent = (t.title || '').trim() || 'Без названия';
   $('#trArtist').textContent = (t.artist || '').trim() || 'Неизвестный исполнитель';
   $('#srcName').textContent = srcName(t.app);
+  $('#srcName').title = String(t.app || '');
   $('#tDur').textContent = dur ? fmt(dur) : '–:––';
   $('.cover').classList.remove('has-art');
   pushRecent(t);
@@ -140,7 +150,31 @@ function setIdle() {
 function setCover(src) {
   $('#coverImg').src = src;
   $('.cover').classList.add('has-art');
+  saveThumb(track, src);
 }
+
+/* маленькие копии обложек: «Недавние» и «Библиотека» показывают их вместо заглушки-луны */
+const thumbKey = t => `${t?.title ?? ''}|${t?.artist ?? ''}`;
+function loadThumbs() { try { const m = JSON.parse(localStorage.getItem('thumbs') || '{}'); return m && typeof m === 'object' ? m : {}; } catch { return {}; } }
+function saveThumb(t, src) {
+  if (!t?.title || !src || t.key === 'demo') return;
+  const img = new Image();
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 120;
+      const side = Math.min(img.naturalWidth, img.naturalHeight); if (!side) return;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 120, 120);
+      const m = loadThumbs(); const k = thumbKey(t);
+      delete m[k]; m[k] = c.toDataURL('image/jpeg', .72);
+      const keys = Object.keys(m); while (keys.length > 60) delete m[keys.shift()];       // не копим бесконечно
+      localStorage.setItem('thumbs', JSON.stringify(m));
+      renderRecent();
+      if ($('#p-lib').classList.contains('active')) loadLibrary();
+    } catch { /* обложка с чужого адреса или нет хранилища — остаётся заглушка */ }
+  };
+  img.src = src;
+}
+const thumbStyle = t => { const u = loadThumbs()[thumbKey(t)]; return typeof u === 'string' && u.startsWith('data:image/') ? `background-image:url('${u}');background-size:cover;background-position:center` : ''; };
 
 function setPlayIcon(playing) {
   if (playing === playingUi) return;
@@ -170,7 +204,7 @@ function renderRecent(r) {
   $$('.rec', box).forEach(n => n.remove());
   if (!r.length) { box.insertAdjacentHTML('beforeend', '<div class="rec empty">Пока пусто</div>'); return; }
   box.insertAdjacentHTML('beforeend', r.map((x, i) => `
-    <div class="rec ${i === 0 ? 'on' : ''}"><i class="rm" style="--ph:${30 + (hueOf(x.title) % 50)}%"></i>
+    <div class="rec ${i === 0 ? 'on' : ''}"><i class="rm${thumbStyle(x) ? ' has-img' : ''}" style="--ph:${30 + (hueOf(x.title) % 50)}%;${thumbStyle(x)}"></i>
       <div><b></b><small></small></div>${i === 0 && !player.classList.contains('idle') ? '<span class="eq"><i></i><i></i><i></i><i></i></span>' : ''}</div>`).join(''));
   $$('.rec', box).forEach((n, i) => { if (r[i]) { $('b', n).textContent = r[i].title; $('small', n).textContent = r[i].artist; } });
 }
@@ -207,7 +241,7 @@ function onLyrics(m) {
   else bigView.setLyrics(null, m.status === 'loading' ? 'loading' : 'notfound');
   if (m.status === 'loading') { setChip('Ищу текст…', false); setEmpty('loading', 'Ищу текст…', 'LRCLIB'); return; }
   if (m.status === 'error') { setChip('Нет связи с LRCLIB', false); setEmpty('idle', 'Нет связи', 'Не удалось связаться с lrclib.net. Проверьте интернет.'); return; }
-  if (m.status === 'notfound') { setChip('Текст не найден', false); setEmpty('idle', 'Текст не найден', 'В LRCLIB пока нет текста для этого трека.'); return; }
+  if (m.status === 'notfound') { setChip('Текст не найден', false); setEmpty('idle', 'Текст не найден', 'Ни в LRCLIB, ни в Genius нет текста для этого трека.'); return; }
   if (m.instrumental) { setChip('Инструментал', false); setEmpty('idle', 'Инструментал', 'У этого трека нет слов.'); return; }
   if (m.lines?.length) {
     setEmpty(null);
@@ -215,7 +249,7 @@ function onLyrics(m) {
     renderLyrics(m.lines);
   } else if (m.plain?.length) {
     setEmpty(null);
-    setChip('LRCLIB · без синхронизации', false);
+    setChip(`${m.source === 'Genius' ? 'Genius' : 'LRCLIB'} · без синхронизации`, false);
     renderLyrics([], m.plain);
   } else {
     setChip('Текст не найден', false);
@@ -263,7 +297,20 @@ function updatePill(li, wi) {
 }
 
 /* ---------- основной цикл ---------- */
+/* Кадры тратим только там, где их видно: на «Библиотеке» и «Настройках» цикл спит, на паузе идёт 5 раз в секунду, в фоновом окне — 30 к/с. */
+let curPage = 'now', shownSec = -1, shownPct = -1, lastTick = 0;
+const tCurEl = $('#tCur');
+function nextFrame(slow) {
+  if (slow) setTimeout(() => requestAnimationFrame(frame), 200); else requestAnimationFrame(frame);
+}
 function frame() {
+  const lively = curPage === 'now' || curPage === 'bar' || curPage === 'stream';
+  if (!lively) return nextFrame(true);
+  // заливка слова перерисовывается примерно 30 раз в секунду (в фоне — 15): на глаз то же самое, а нагрузка на видеокарту вдвое меньше
+  const nowMs = performance.now(), step = document.hasFocus() ? 32 : 64;
+  if (nowMs - lastTick < step - 4) return requestAnimationFrame(frame);
+  lastTick = nowMs;
+
   let t = clock.now();
   if (!hasMoon && t >= dur) { clock.seek(0); t = 0; lastLine = -1; }      // демо крутится по кругу
   t += settings.offset / 1000;
@@ -292,14 +339,15 @@ function frame() {
     if (settings.pillAnim === 'fill' && pillLine === li && wi >= 0) l.words[wi].pEl?.style.setProperty('--p', p.toFixed(3));
   }
 
-  if (dur > 0) {
-    const pct = Math.min(100, Math.max(0, (clock.now() / dur) * 100));
-    seekFill.style.width = pct + '%';
-    seekKnob.style.left = pct + '%';
-  } else { seekFill.style.width = '0%'; }
-  $('#tCur').textContent = fmt(Math.min(dur || Infinity, Math.max(0, clock.now())));
+  if (curPage === 'now') {
+    const pct = dur > 0 ? Math.min(100, Math.max(0, (clock.now() / dur) * 100)) : 0;
+    const q = Math.round(pct * 20) / 20;                                  // полоса меняется шагом 0,05 % — лишних перерисовок нет
+    if (q !== shownPct) { shownPct = q; seekFill.style.width = q + '%'; seekKnob.style.left = q + '%'; }
+    const sec = Math.floor(Math.min(dur || Infinity, Math.max(0, clock.now())));
+    if (sec !== shownSec) { shownSec = sec; tCurEl.textContent = fmt(sec); }
+  }
   if (strPage.classList.contains('active')) tickStream(t);
-  requestAnimationFrame(frame);
+  nextFrame(!clock.playing && hasMoon);
 }
 
 function seekTo(sec) {
@@ -457,6 +505,7 @@ function go(page) {
     if (on) navInd.style.transform = `translateY(${i * 50}px)`;
   });
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'p-' + page));
+  curPage = page; shownSec = -1; shownPct = -1;                         // цикл мог спать — пусть перерисует время и полосу
   if (page === 'bar') lastWord = -2;
   if (page === 'stream') { fitStages(); requestAnimationFrame(fitStages); }
   if (page === 'lib') loadLibrary();
@@ -482,7 +531,7 @@ async function loadLibrary() {
   }
   grid.innerHTML = list.map((x, i) => `
     <div class="lib-card glass" style="--i:${i}">
-      <div class="lib-art" style="--ph:${30 + (hueOf(x.title) % 50)}%;background:radial-gradient(circle at 70% 25%, hsl(${hueOf(x.title)} 35% 22%), #05060a 70%)">
+      <div class="lib-art${thumbStyle(x) ? ' has-img' : ''}" style="--ph:${30 + (hueOf(x.title) % 50)}%;background:radial-gradient(circle at 70% 25%, hsl(${hueOf(x.title)} 35% 22%), #05060a 70%);${thumbStyle(x)}">
         ${track && x.title === track.title ? '<em>Сейчас</em>' : ''}</div>
       <b></b><small></small>
     </div>`).join('');
@@ -663,6 +712,9 @@ function applyStreamUI(local) {
 }
 
 /* ---------- старт ---------- */
+const syncFocusClass = () => document.documentElement.classList.toggle('bg-paused', !document.hasFocus());
+addEventListener('focus', syncFocusClass); addEventListener('blur', syncFocusClass); syncFocusClass();
+
 (async function start() {
   go('now');
   fitStages();

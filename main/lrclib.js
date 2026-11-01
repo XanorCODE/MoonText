@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { fetchGenius } = require('./genius');
 
 const API = 'https://lrclib.net/api';
 const HEADERS = { 'User-Agent': 'MoonText/0.1 (https://github.com/moontext)' };
@@ -56,17 +57,29 @@ async function fetchLyrics({ title, artist, album, dur }) {
   if (album) q.set('album_name', album);
   if (dur > 0) q.set('duration', String(Math.round(dur)));
 
-  let hit = null;
-  try { hit = await getJson(`${API}/get?${q}`); } catch { /* пробуем поиск */ }
-  if (!hit || (!hit.syncedLyrics && !hit.plainLyrics)) {
-    const s = await getJson(`${API}/search?${new URLSearchParams({ track_name: t, artist_name: a })}`);
-    hit = s && pick(s, dur);
-    if (!hit) {
-      const s2 = await getJson(`${API}/search?${new URLSearchParams({ q: `${a} ${t}`.trim() })}`);
-      hit = s2 && pick(s2, dur);
+  let hit = null, lrcError = null;
+  try {
+    try { hit = await getJson(`${API}/get?${q}`); } catch (e) { lrcError = e; }      // пробуем поиск
+    if (!hit || (!hit.syncedLyrics && !hit.plainLyrics)) {
+      if (lrcError && !/LRCLIB \d/.test(lrcError.message)) throw lrcError;          // сервер недоступен — повторять запросы к нему незачем
+      const s = await getJson(`${API}/search?${new URLSearchParams({ track_name: t, artist_name: a })}`);
+      lrcError = null;                          // поиск ответил — сервер доступен
+      hit = s && pick(s, dur);
+      if (!hit) {
+        const s2 = await getJson(`${API}/search?${new URLSearchParams({ q: `${a} ${t}`.trim() })}`);
+        hit = s2 && pick(s2, dur);
+      }
     }
+  } catch (e) { lrcError = e; hit = null; }
+  if (!hit) {
+    // в LRCLIB текста нет (или он недоступен) — пробуем Genius
+    try {
+      const g = await fetchGenius(doFetch, { title: t, artist: a });
+      if (g) return g;
+    } catch { /* запасной источник недоступен */ }
+    if (lrcError) throw lrcError;               // нигде не нашли и LRCLIB не отвечал — это «нет связи», а не «нет текста»
+    return { found: false };
   }
-  if (!hit) return { found: false };
   if (hit.instrumental) return { found: true, instrumental: true, lines: [] };
   return {
     found: true,
@@ -85,7 +98,7 @@ function normalizeResult(r) {
     : [];
   const plain = Array.isArray(r.plain) ? r.plain.filter(x => typeof x === 'string').slice(0, 3000) : [];
   if (!r.instrumental && !lines.length && !plain.length) return null;          // пустой «найденный» текст — это не текст
-  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: 'LRCLIB' };
+  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: r.source === 'Genius' ? 'Genius' : 'LRCLIB' };
 }
 
 async function getLyrics(raw) {

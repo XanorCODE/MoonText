@@ -4,6 +4,8 @@
 
 <p align="center"><img src="docs/hero.png" alt="MoonText — тексты песен по словам" width="900"></p>
 
+<p align="center"><img src="docs/plashka.gif" alt="Плашка MoonText: слова подсвечиваются в такт песне" width="700"></p>
+
 ## Возможности
 
 Тексты ищутся в [LRCLIB](https://lrclib.net) (с подсветкой по словам). Если там текста нет, MoonText показывает обычный текст с [Genius](https://genius.com) — без синхронизации.

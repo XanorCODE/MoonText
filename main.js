@@ -18,6 +18,7 @@ const DEFAULTS = {
   speed: 60,
   hideFullscreen: true,   // прятать плашку, пока открыто полноэкранное приложение
   autoDownloadUpdates: true,   // скачивать обновления сами; если выключено — только сообщить о новой версии
+  ignoredApps: [],             // приложения-источники (id медиа-сеанса Windows), которые MoonText не слушает
   // оверлей для OBS
   streamEnabled: false,
   streamPort: 17800,
@@ -77,6 +78,9 @@ function cleanPatch(src) {
     }
     else if (BOOLS.includes(key)) { if (typeof v === 'boolean') out[key] = v; }
     else if (COLORS.includes(key)) { if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) out[key] = v.toLowerCase(); }
+    else if (key === 'ignoredApps') {
+      if (Array.isArray(v)) out[key] = [...new Set(v.filter(x => typeof x === 'string' && x.trim() && x.length <= 200).map(x => x.trim()))].slice(0, 50);
+    }
   }
   return out;
 }
@@ -371,7 +375,14 @@ function coverFallback(track) {
   }, 3500);
 }
 
+let seekGuard = null;     // { sec, at, until }: куда мы только что перемотали
+let seenSources = [];     // приложения, у которых сейчас есть медиа-сеанс (для списка источников в настройках)
 media.on('message', m => {
+  if (m.type === 'sources') {
+    seenSources = Array.isArray(m.apps) ? m.apps.filter(x => typeof x === 'string').slice(0, 50) : [];
+    broadcast({ type: 'sources', apps: seenSources });
+    return;
+  }
   if (m.type === 'fs') {
     fullscreen = !!m.on;
     updatePillVisibility();
@@ -392,6 +403,7 @@ media.on('message', m => {
       snap.track = { key, title: m.title, artist: m.artist, album: m.album, app: m.app, dur: m.dur };
       snap.cover = null;
       snap.lyrics = null;
+      seekGuard = null;
       broadcast({ type: 'track', track: snap.track });
       if (m.title) { loadLyrics(snap.track); coverFallback(snap.track); }
       else lyricsToken++;
@@ -399,7 +411,16 @@ media.on('message', m => {
       snap.track.dur = m.dur;
       broadcast({ type: 'track', track: snap.track, keepLyrics: true });
     }
-    snap.state = { status: m.status, pos: m.pos, dur: m.dur, updated: m.updated, at: Date.now() };
+    let pos = m.pos, updated = m.updated;
+    if (seekGuard) {                                  // сразу после перемотки плеер ещё недолго отдаёт старую позицию — подменяем её на ожидаемую
+      const now = Date.now(), playing = m.status === 'Playing';
+      const expected = seekGuard.sec + (playing ? (now - seekGuard.at) / 1000 : 0);
+      const reported = pos + (playing && updated > 1e12 ? Math.max(0, (now - updated) / 1000) : 0);
+      if (Math.abs(reported - expected) <= 1.5) seekGuard = null;          // плеер перемотал — дальше верим ему
+      else if (now > seekGuard.until) seekGuard = null;                    // плеер перемотку не принял — показываем как есть
+      else { pos = expected; updated = now; }
+    }
+    snap.state = { status: m.status, pos, dur: m.dur, updated, at: Date.now() };
     broadcast({ type: 'state', state: snap.state });
     return;
   }
@@ -458,7 +479,7 @@ ipcMain.handle('update:install', () => {
 });
 
 /* ---------- IPC ---------- */
-ipcMain.handle('init', () => ({ settings, version: app.getVersion(), update: upd, stream: stream.status, ...snap }));
+ipcMain.handle('init', () => ({ settings, version: app.getVersion(), update: upd, stream: stream.status, sources: seenSources, ...snap }));
 ipcMain.handle('copy', (_, text) => { if (typeof text === 'string' && text.length < 500) clipboard.writeText(text); });
 ipcMain.handle('open-link', (_, key) => {
   // наружу открываем только заранее известные ссылки
@@ -469,7 +490,10 @@ ipcMain.handle('stream:open', () => {
   if (stream.status.running) shell.openExternal(`http://localhost:${stream.status.port}/overlay`);
 });
 ipcMain.handle('control', (_, cmd) => {
-  if (typeof cmd === 'string' && /^(toggle|play|pause|next|prev|seek:\d{1,6}(\.\d{1,3})?)$/.test(cmd)) media.send(cmd);
+  if (typeof cmd === 'string' && /^(toggle|play|pause|next|prev|seek:\d{1,6}(\.\d{1,3})?)$/.test(cmd)) {
+    if (cmd.startsWith('seek:')) seekGuard = { sec: parseFloat(cmd.slice(5)), at: Date.now(), until: Date.now() + 2000 };
+    media.send(cmd);
+  }
 });
 ipcMain.handle('library', () => lrclib.library());
 function applySettingsPatch(rawPatch) {
@@ -483,6 +507,7 @@ function applySettingsPatch(rawPatch) {
   if ('pillPos' in patch || 'pillOffset' in patch) placePill();
   if ('hideFullscreen' in patch) updatePillVisibility();
   if ('autoDownloadUpdates' in patch && app.isPackaged) autoUpdater.autoDownload = !!settings.autoDownloadUpdates;
+  if ('ignoredApps' in patch) media.setIgnored(settings.ignoredApps);
   if ('appTheme' in patch) applyChrome();
   if ('streamEnabled' in patch || 'streamPort' in patch) syncStream();
   broadcast({ type: 'settings', settings });
@@ -501,6 +526,7 @@ app.whenReady().then(() => {
   syncPill();
   initUpdater();
   syncStream();
+  media.setIgnored(settings.ignoredApps);
   media.start();
   setInterval(placePill, 4000);                       // геометрия: панель могла сдвинуться
   // клик по панели задач поднимает её над остальными topmost-окнами — возвращаем плашку почти сразу

@@ -143,8 +143,11 @@ svg { width: 22px; height: 22px; flex: none; }
 
 @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
 
-.line { padding: 13px 0; font-size: clamp(30px, 3.3vw, 46px); line-height: 1.16; font-weight: 740; letter-spacing: -.025em; opacity: .25; filter: blur(3px); transform: scale(.9); transform-origin: left center; transition: opacity .7s var(--smooth), filter .7s var(--smooth), transform .8s var(--smooth); cursor: pointer; backface-visibility: hidden; }
+.line { padding: 13px 0; font-size: clamp(30px, 3.3vw, 46px); line-height: 1.16; font-weight: 740; letter-spacing: -.025em; opacity: .25; filter: blur(3px); transform: scale(.9); transform-origin: left center; transition: opacity .7s var(--smooth), filter .7s var(--smooth), transform .8s var(--smooth); backface-visibility: hidden; }
+.line:not(.static) { cursor: pointer; }
 .line:hover { opacity: .5; }
+.lyrics.browsing .lyrics-track { transition: transform .18s ease-out; }
+.lyrics.browsing .line:not(.active) { opacity: .7; filter: none; }
 .line.near { filter: blur(1.4px); opacity: .38; }
 .line.active { opacity: 1; filter: none; transform: scale(1); }
 
@@ -351,9 +354,9 @@ body:not(.is-playing) .rec .eq { display: none; }
 .theme-tile { display: flex; flex-direction: column; align-items: stretch; gap: 9px; padding: 9px 9px 12px; border-radius: 22px; text-align: center; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); transition: transform .5s var(--spring), background .3s, box-shadow .3s; }
 .theme-tile:hover { transform: translateY(-3px); background: rgba(255,255,255,.07); }
 .theme-tile:active { transform: scale(.97); }
-.theme-tile span { padding: 0 6px; font-size: 13.5px; font-weight: 600; color: var(--dim); text-align: center; }
+.theme-tile > span { padding: 0 6px; font-size: 13.5px; font-weight: 600; color: var(--dim); text-align: center; }
 .theme-tile.on { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7), 0 0 24px rgba(255,255,255,.12); }
-.theme-tile.on span { color: #fff; }
+.theme-tile.on > span { color: #fff; }
 
 /* превью-плитки: анимации декора на паузе, пока на плитку не наведён курсор (иначе 11 живых превью грузят видеокарту) */
 .tile-stage .ov, .tile-stage .ov *, .tile-stage .ov *::before, .tile-stage .ov *::after { animation-play-state: paused !important; }
@@ -529,7 +532,7 @@ html[data-theme="light"] .sw-dot.custom.on::after { box-shadow: 0 0 0 1px rgba(1
 html[data-theme="light"] .theme-tile { background: rgba(255,255,255,.5); box-shadow: inset 0 0 0 1px rgba(18,20,28,.08); }
 html[data-theme="light"] .theme-tile:hover { background: rgba(255,255,255,.85); }
 html[data-theme="light"] .theme-tile.on { background: #fff; box-shadow: inset 0 0 0 2px #12141c, 0 6px 20px rgba(40,55,100,.16); }
-html[data-theme="light"] .theme-tile.on span { color: #12141c; }
+html[data-theme="light"] .theme-tile.on > span { color: #12141c; }
 html[data-theme="light"] .anim-chip { background: rgba(18,20,28,.05); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), inset 0 0 0 1px rgba(18,20,28,.05); }
 html[data-theme="light"] .anim-chip:hover { color: #12141c; }
 html[data-theme="light"] .anim-chip.on { color: #fff; background: linear-gradient(145deg, #262d44, #0d1019); box-shadow: 0 4px 14px rgba(20,28,60,.25); }

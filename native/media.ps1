@@ -27,6 +27,26 @@ $propsType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMed
 Add-Type -Namespace MT -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int state);'
 $lastFs = $null
 
+$script:ignored = @()
+$script:lastSources = $null
+
+function IsIgnored($sess) { return ($script:ignored -contains [string]$sess.SourceAppUserModelId) }
+
+# Текущий сеанс Windows, но не из списка игнорируемых: если «главный» сеанс игнорируется (например, браузер), берём играющий из остальных
+function PickSession {
+  $all = @($mgr.GetSessions())
+  $ids = @($all | ForEach-Object { [string]$_.SourceAppUserModelId })
+  $sig = ($ids | Sort-Object) -join '|'
+  if ($sig -ne $script:lastSources) { $script:lastSources = $sig; Emit @{ type = 'sources'; apps = $ids } }
+  $cur = $mgr.GetCurrentSession()
+  if ($cur -and -not (IsIgnored $cur)) { return $cur }
+  $ok = @($all | Where-Object { -not (IsIgnored $_) })
+  if ($ok.Count -eq 0) { return $null }
+  $playing = $ok | Where-Object { $_.GetPlaybackInfo().PlaybackStatus.ToString() -eq 'Playing' } | Select-Object -First 1
+  if ($playing) { return $playing }
+  return $ok[0]
+}
+
 $lastKey = ''
 $coverTries = 0
 $coverSent = $false
@@ -35,7 +55,7 @@ $readTask = $reader.ReadLineAsync()
 
 while ($true) {
   try {
-    $s = $mgr.GetCurrentSession()
+    $s = PickSession
 
     # 2 — полноэкранное приложение / режим презентации, 3 — полноэкранная игра (D3D), 4 — презентация
     $q = 0
@@ -47,7 +67,14 @@ while ($true) {
       $cmd = $readTask.Result
       $readTask = $reader.ReadLineAsync()
       if ($cmd -eq $null) { break }
-      if ($s) {
+      if ($cmd -match '^ignore:(.+)$') {
+        try {
+          $json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Matches[1]))
+          $script:ignored = @(ConvertFrom-Json $json | ForEach-Object { [string]$_ })
+        } catch { $script:ignored = @() }
+        $s = PickSession
+        $lastKey = ''
+      } elseif ($s) {
         switch -Regex ($cmd) {
           '^toggle$' { $null = $s.TryTogglePlayPauseAsync() }
           '^play$'   { $null = $s.TryPlayAsync() }

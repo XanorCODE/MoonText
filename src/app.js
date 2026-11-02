@@ -9,7 +9,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 /* ---------- состояние ---------- */
-let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoDownloadUpdates: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
+let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoDownloadUpdates: true, ignoredApps: [], showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
@@ -60,6 +60,7 @@ function setChip(text, on = true) {
 /* ---------- текст ---------- */
 function renderLyrics(raw, plain) {
   trackEl.innerHTML = '';
+  clearTimeout(browseTimer); browsing = false; lyricsEl.classList.remove('browsing');
   lines = [];
   lastLine = -1; lastWord = -2; pillLine = -1;
   pillTrack.innerHTML = '';
@@ -80,7 +81,8 @@ function renderLyrics(raw, plain) {
         w.el = s;
         el.appendChild(s);
       });
-      el.addEventListener('click', () => seekTo(l.start + 0.01));
+      // клик по строке перематывает на её начало (с учётом сдвига синхронизации, чтобы подсветилась именно эта строка)
+      el.addEventListener('click', () => { endBrowse(); seekTo(Math.max(0, l.start - settings.offset / 1000) + 0.05); });
       l.el = el;
       trackEl.appendChild(el);
     });
@@ -96,10 +98,34 @@ function renderLyrics(raw, plain) {
 
 function scrollTo(idx) {
   const el = lines[idx]?.el;
-  if (!el) return;
+  if (!el || browsing) return;                    // пока текст листают вручную, строку не «подтягиваем»
   const target = lyricsEl.clientHeight * 0.32 - (el.offsetTop + el.offsetHeight / 2);
   trackEl.style.transform = `translateY(${target}px)`;
 }
+
+/* Колёсиком можно листать весь текст во время песни; через 4 секунды без движения он сам возвращается к текущей строке. */
+let browsing = false, browseY = 0, browseTimer = 0;
+function endBrowse() {
+  clearTimeout(browseTimer);
+  if (!browsing) return;
+  browsing = false;
+  lyricsEl.classList.remove('browsing');
+  if (lastLine >= 0) scrollTo(lastLine);
+}
+lyricsEl.addEventListener('wheel', e => {
+  if (!lines.length || lyricsEl.classList.contains('plain')) return;
+  if (!browsing) {
+    browsing = true;
+    browseY = new DOMMatrix(getComputedStyle(trackEl).transform).m42;
+    lyricsEl.classList.add('browsing');
+  }
+  const top = lyricsEl.clientHeight * 0.32, bottom = lyricsEl.clientHeight * 0.68 - trackEl.offsetHeight;
+  browseY = Math.max(Math.min(bottom, top), Math.min(top, browseY - e.deltaY));
+  trackEl.style.transform = `translateY(${browseY}px)`;
+  clearTimeout(browseTimer);
+  browseTimer = setTimeout(endBrowse, 4000);
+  e.preventDefault();
+}, { passive: false });
 
 /* ---------- трек ---------- */
 const SOURCES = [
@@ -227,6 +253,7 @@ function onMsg(m) {
       setPlayIcon(m.state.status === 'Playing');
       break;
     case 'cover': setCover(m.cover); bigView.setCover(m.cover); break;
+    case 'sources': seenSources = m.apps || []; renderSources(); break;
     case 'stream': renderStream(m.status); break;
     case 'lyrics': onLyrics(m); break;
     case 'settings': applySettings(m.settings); break;
@@ -468,6 +495,7 @@ function applySettings(s, local) {
     $('#setSpeed').value = settings.speed;
   }
   $('#offLabel').textContent = offLabel(settings.offset);
+  renderSources();
   applyStreamUI(local);
   lastWord = -2;
   setTimeout(() => { lastWord = -2; }, 100);
@@ -494,6 +522,37 @@ $('#setPa').addEventListener('input', e => save({ pillOpacity: +e.target.value }
 $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value }));
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
 $('#setAutoUpd').addEventListener('change', e => save({ autoDownloadUpdates: e.target.checked }));
+
+/* ---------- источники музыки: что слушать, а что игнорировать ---------- */
+let seenSources = [];
+function renderSources() {
+  const ignored = settings.ignoredApps || [];
+  const low = x => String(x).toLowerCase();
+  const ids = [...seenSources];
+  ignored.forEach(x => { if (!ids.some(y => low(y) === low(x))) ids.push(x); });
+  const list = $('#srcList');
+  list.textContent = '';
+  ids.forEach(id => {
+    const off = ignored.some(x => low(x) === low(id));
+    const live = seenSources.some(y => low(y) === low(id));
+    const row = document.createElement('div');
+    row.className = 'row';
+    const txt = document.createElement('div');
+    const t = document.createElement('div'); t.className = 'card-t'; t.textContent = srcName(id);
+    const d = document.createElement('div'); d.className = 'card-d'; d.textContent = (live ? 'Сейчас открыт' : 'Не запущен') + (off ? ' · не слушаем' : '');
+    txt.append(t, d);
+    const sw = document.createElement('label'); sw.className = 'sw';
+    const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !off;
+    inp.addEventListener('change', () => {
+      const rest = (settings.ignoredApps || []).filter(x => low(x) !== low(id));
+      save({ ignoredApps: inp.checked ? rest : [...rest, id] });
+    });
+    sw.append(inp, document.createElement('i'));
+    row.append(txt, sw);
+    list.append(row);
+  });
+  $('#srcEmpty').style.display = ids.length ? 'none' : '';
+}
 $('#setWave').addEventListener('change', e => save({ pillWave: e.target.checked }));
 $('#setEco').addEventListener('change', e => save({ pillEco: e.target.checked }));
 $('#setMoon').addEventListener('change', e => save({ pillMoon: e.target.checked }));
@@ -623,12 +682,13 @@ const DEMO_COVER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="
 
 
 // плитки дизайнов: живые мини-превью на тестовом треке
+const TILE_BASE = [800, 230];
 const tiles = OV.THEMES.map(th => {
   const btn = document.createElement('button');
   btn.className = 'theme-tile';
   btn.innerHTML = '<div class="tile-stage"><div class="scaler"><div class="tile-ov"></div></div></div><span></span>';
   $('span', btn).textContent = th.name;
-  const view = OV.create($('.tile-ov', btn), { streamSize: ['subtitles', 'capsule'].includes(th.id) ? 76 : 40, streamLines: 3, streamWords: true, streamCover: false, streamMeta: false, streamTheme: th.id, streamAccent: th.accent }, { base: [800, 230] });
+  const view = OV.create($('.tile-ov', btn), { streamSize: ['subtitles', 'capsule'].includes(th.id) ? 76 : 40, streamLines: 3, streamWords: true, streamCover: false, streamMeta: false, streamTheme: th.id, streamAccent: th.accent }, { base: TILE_BASE });
   view.setTrack(DEMO.track); view.setCover(DEMO_COVER); view.setLyrics(DEMO.lyrics, 'ok'); view.setPlaying(true);
   btn.addEventListener('click', () => save({ streamTheme: th.id, streamAccent: th.accent }));
   $('#themeGrid').appendChild(btn);
@@ -637,7 +697,7 @@ const tiles = OV.THEMES.map(th => {
 
 function fitStages() {
   $$('.tile-stage, .ov-stage').forEach(st => {
-    const base = st.classList.contains('tile-stage') ? 800 : 1280;
+    const base = st.classList.contains('tile-stage') ? TILE_BASE[0] : 1280;
     st.style.setProperty('--sc', (st.clientWidth / base).toFixed(4));
   });
 }
@@ -747,6 +807,7 @@ addEventListener('focus', syncFocusClass); addEventListener('blur', syncFocusCla
   applySettings(init.settings);
   $('#appVer').textContent = init.version || '';
   renderUpdate(init.update || { state: 'idle' });
+  seenSources = init.sources || []; renderSources();
   renderStream(init.stream || { running: false, port: settings.streamPort, clients: 0 });
   if (init.none || !init.track) { setIdle(); return; }
   onMsg({ type: 'track', track: init.track });

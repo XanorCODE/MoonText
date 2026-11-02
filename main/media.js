@@ -13,6 +13,7 @@ class MediaWatcher extends EventEmitter {
     });
     this.proc.on('error', () => { /* powershell не найден — повторим через exit-обработчик */ });
     this.proc.stdin.on('error', () => { /* процесс уже завершился */ });
+    if (this.ignoreCmd) this.send(this.ignoreCmd);
     let buf = '';
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', chunk => {
@@ -31,14 +32,24 @@ class MediaWatcher extends EventEmitter {
     });
   }
 
+  /** Какие приложения не слушать: список id медиа-сеансов (регистр не важен). */
+  setIgnored(list) {
+    this.ignored = (Array.isArray(list) ? list : []).map(x => String(x).toLowerCase());
+    this.ignoreCmd = 'ignore:' + Buffer.from(JSON.stringify(Array.isArray(list) ? list : []), 'utf8').toString('base64');
+    this.send(this.ignoreCmd);
+  }
+
   /** Отладка без плеера: MOONTEXT_FAKE=1 npm start */
   fake() {
     const t0 = Date.now();
     let extra = {};
     try { extra = JSON.parse(process.env.MOONTEXT_FAKE_TRACK || '{}'); } catch { /* не JSON — игнорируем */ }
+    this.emit('message', { type: 'sources', apps: ['Spotify.exe', 'chrome.exe'] });
     this.timer = setInterval(() => {
+      const app = extra.app || 'Spotify.exe';
+      if ((this.ignored || []).includes(app.toLowerCase())) return this.emit('message', { type: 'none' });
       this.emit('message', {
-        type: 'state', app: 'Spotify.exe', title: 'Bohemian Rhapsody', artist: 'Queen', album: 'A Night at the Opera',
+        type: 'state', app, title: 'Bohemian Rhapsody', artist: 'Queen', album: 'A Night at the Opera',
         status: 'Playing', pos: 0, dur: 354, updated: t0, ...extra,
       });
     }, 400);

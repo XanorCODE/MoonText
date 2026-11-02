@@ -301,15 +301,9 @@
 
         <div class="card glass" data-s style="--i:2">
           <div class="card-t big">Источники музыки</div>
-          <div class="srcs">
-            <span class="chip on">Spotify</span>
-            <span class="chip on">Яндекс Музыка</span>
-            <span class="chip on">YouTube Music</span>
-            <span class="chip on">Apple Music</span>
-            <span class="chip">Браузер</span>
-            <span class="chip">VK Музыка</span>
-          </div>
-          <div class="card-d" style="margin-top:12px">Трек определяется через системный медиа-сеанс Windows</div>
+          <div class="card-d">Трек определяется через системный медиа-сеанс Windows. Выключите источник, и MoonText перестанет его слушать: например, браузер, чтобы он не перебивал плеер.</div>
+          <div id="srcList"></div>
+          <div class="card-d" id="srcEmpty" style="margin-top:10px">Включите музыку, и её источник появится в списке.</div>
         </div>
 
         <div class="card glass" data-s style="--i:3">

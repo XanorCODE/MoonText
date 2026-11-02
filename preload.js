@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld('moon', {
   copy: text => ipcRenderer.invoke('copy', text),
   openStream: () => ipcRenderer.invoke('stream:open'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
 });

@@ -17,6 +17,7 @@ const DEFAULTS = {
   adaptive: true,
   speed: 60,
   hideFullscreen: true,   // прятать плашку, пока открыто полноэкранное приложение
+  autoDownloadUpdates: true,   // скачивать обновления сами; если выключено — только сообщить о новой версии
   // оверлей для OBS
   streamEnabled: false,
   streamPort: 17800,
@@ -60,7 +61,7 @@ const RANGES = {
   offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
   streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100],
 };
-const BOOLS = ['pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound'];
+const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound'];
 const COLORS = ['pillAccent', 'streamAccent'];
 
 function cleanPatch(src) {
@@ -411,7 +412,7 @@ media.on('message', m => {
 });
 
 /* ---------- обновления (GitHub Releases) ---------- */
-let upd = { state: 'idle' };       // idle | checking | none | downloading | ready | error | dev
+let upd = { state: 'idle' };       // idle | checking | none | available | downloading | ready | error | dev
 function setUpd(p) { upd = { ...upd, ...p }; broadcast({ type: 'update', update: upd }); }
 
 /** releaseNotes приходят строкой (HTML/Markdown с GitHub) или массивом — приводим к простому тексту. */
@@ -425,10 +426,11 @@ function initUpdater() {
   if (!app.isPackaged) return;
   // для проверки обновления без GitHub: MOONTEXT_UPDATE_URL=http://127.0.0.1:порт (лента latest.yml)
   if (process.env.MOONTEXT_UPDATE_URL) autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MOONTEXT_UPDATE_URL });
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = settings.autoDownloadUpdates !== false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('checking-for-update', () => setUpd({ state: 'checking' }));
-  autoUpdater.on('update-available', i => setUpd({ state: 'downloading', version: i.version, percent: 0, notes: notesText(i.releaseNotes) }));
+  // автоскачивание выключено — только сообщаем, что есть новая версия; скачать можно кнопкой
+  autoUpdater.on('update-available', i => setUpd({ state: autoUpdater.autoDownload ? 'downloading' : 'available', version: i.version, percent: 0, notes: notesText(i.releaseNotes) }));
   autoUpdater.on('update-not-available', () => setUpd({ state: 'none' }));
   autoUpdater.on('download-progress', p => setUpd({ state: 'downloading', percent: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', i => setUpd({ state: 'ready', version: i.version }));
@@ -441,6 +443,11 @@ ipcMain.handle('update:check', () => {
   if (!app.isPackaged) return setUpd({ state: 'dev' });
   if (upd.state === 'checking' || upd.state === 'downloading') return;
   return autoUpdater.checkForUpdates().catch(() => {});
+});
+ipcMain.handle('update:download', () => {
+  if (!app.isPackaged || upd.state !== 'available') return;
+  setUpd({ state: 'downloading', percent: 0 });
+  return autoUpdater.downloadUpdate().catch(e => setUpd({ state: 'error', message: String(e?.message || e).split('\n')[0] }));
 });
 ipcMain.handle('update:install', () => {
   if (upd.state !== 'ready') return;
@@ -475,6 +482,7 @@ function applySettingsPatch(rawPatch) {
   if ('showPill' in patch) { syncPill(); tray?.setContextMenu(buildTrayMenu()); }
   if ('pillPos' in patch || 'pillOffset' in patch) placePill();
   if ('hideFullscreen' in patch) updatePillVisibility();
+  if ('autoDownloadUpdates' in patch && app.isPackaged) autoUpdater.autoDownload = !!settings.autoDownloadUpdates;
   if ('appTheme' in patch) applyChrome();
   if ('streamEnabled' in patch || 'streamPort' in patch) syncStream();
   broadcast({ type: 'settings', settings });

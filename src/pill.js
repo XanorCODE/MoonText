@@ -128,6 +128,7 @@ function buildTrack(li) {
       w.el = s;
       trackEl.appendChild(s);
     });
+    E.padPillWords(lines[idx].words.map(w => w.el), settings.pillAnim);
     trackEl.style.transform = 'translateX(60px)';
     curWord = -2;
   });

@@ -344,20 +344,22 @@ body:not(.is-playing) .rec .eq { display: none; }
 
 .ov-stage, .tile-stage { position: relative; overflow: hidden; border-radius: 18px; background: linear-gradient(135deg, #16233a, #2a1a40 60%, #0d1822); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
 .ov-stage { aspect-ratio: 1280 / 360; }
-.tile-stage { aspect-ratio: 800 / 230; }
+.tile-stage { aspect-ratio: 800 / 230; width: 100%; }      /* без явной ширины в колонке button она схлопывалась в 0 и мини-превью дизайнов не было видно */
 .scaler { position: absolute; left: 0; top: 0; width: 1280px; height: 360px; transform-origin: 0 0; transform: scale(var(--sc, .5)); }
 .tile-stage .scaler { width: 800px; height: 230px; }
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
-.theme-tile { display: flex; flex-direction: column; gap: 9px; padding: 9px 9px 12px; border-radius: 22px; text-align: left; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); transition: transform .5s var(--spring), background .3s, box-shadow .3s; }
+.theme-tile { display: flex; flex-direction: column; align-items: stretch; gap: 9px; padding: 9px 9px 12px; border-radius: 22px; text-align: center; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); transition: transform .5s var(--spring), background .3s, box-shadow .3s; }
 .theme-tile:hover { transform: translateY(-3px); background: rgba(255,255,255,.07); }
 .theme-tile:active { transform: scale(.97); }
-.theme-tile span { padding: 0 6px; font-size: 13.5px; font-weight: 600; color: var(--dim); }
+.theme-tile span { padding: 0 6px; font-size: 13.5px; font-weight: 600; color: var(--dim); text-align: center; }
 .theme-tile.on { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7), 0 0 24px rgba(255,255,255,.12); }
 .theme-tile.on span { color: #fff; }
 
 /* превью-плитки: анимации декора на паузе, пока на плитку не наведён курсор (иначе 11 живых превью грузят видеокарту) */
 .tile-stage .ov, .tile-stage .ov *, .tile-stage .ov *::before, .tile-stage .ov *::after { animation-play-state: paused !important; }
 .theme-tile:hover .tile-stage .ov, .theme-tile:hover .tile-stage .ov *, .theme-tile:hover .tile-stage .ov *::before, .theme-tile:hover .tile-stage .ov *::after { animation-play-state: running !important; }
+/* в мини-превью движение стоит на паузе, поэтому «въезд» строки (ovIn) застревал на первом кадре и текст оставался прозрачным — там он не нужен */
+.tile-stage .ov-lyrics.flip .ov-line { animation: none !important; }
 
 /* анимации текста плашки: data-anim = run | fade | rise | pop | blur | fill */
 @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }

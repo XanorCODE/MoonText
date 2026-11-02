@@ -9,7 +9,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 /* ---------- состояние ---------- */
-let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
+let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoDownloadUpdates: true, showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
@@ -275,6 +275,7 @@ function buildPill(idx) {
       w.pEl = s;
       pillTrack.appendChild(s);
     });
+    E.padPillWords(lines[idx].words.map(w => w.pEl), settings.pillAnim);
     pillTrack.style.transition = 'none';
     pillTrack.style.transform = 'translateX(60px)';
     void pillTrack.offsetWidth;
@@ -457,6 +458,7 @@ function applySettings(s, local) {
     $('#setEco').checked = settings.pillEco;
     $('#setWave').checked = settings.pillWave;
     $('#setFs').checked = settings.hideFullscreen;
+    $('#setAutoUpd').checked = settings.autoDownloadUpdates !== false;
     $('#setEdge').value = settings.pillOffset;
     $('#setAutostart').checked = settings.autostart;
     $('#setPill').checked = settings.showPill;
@@ -491,6 +493,7 @@ $('#pillReset').addEventListener('click', () => {
 $('#setPa').addEventListener('input', e => save({ pillOpacity: +e.target.value }));
 $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value }));
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
+$('#setAutoUpd').addEventListener('change', e => save({ autoDownloadUpdates: e.target.checked }));
 $('#setWave').addEventListener('change', e => save({ pillWave: e.target.checked }));
 $('#setEco').addEventListener('change', e => save({ pillEco: e.target.checked }));
 $('#setMoon').addEventListener('change', e => save({ pillMoon: e.target.checked }));
@@ -561,23 +564,24 @@ function renderUpdate(u) {
     checking: 'Проверяю…',
     none: 'У вас последняя версия',
     dev: 'В режиме разработки обновления отключены',
+    available: `Доступна версия ${u.version || ''} — скачайте её, когда удобно`,
     downloading: `Скачиваю версию ${u.version || ''}… ${u.percent || 0}%`,
     ready: `Версия ${u.version} готова к установке`,
     error: `Не удалось проверить обновления${u.message ? ': ' + u.message : ''}`,
   }[u.state];
   $('#updText').textContent = txt;
-  // кнопка в левом меню: появляется, когда есть обновление
-  const side = $('#updSide'), busy = u.state === 'downloading', ready = u.state === 'ready';
-  side.classList.toggle('show', busy || ready);
+  // кнопка в левом меню: появляется, когда есть обновление (новое, скачивается или готово)
+  const side = $('#updSide'), busy = u.state === 'downloading', ready = u.state === 'ready', avail = u.state === 'available';
+  side.classList.toggle('show', busy || ready || avail);
   side.classList.toggle('busy', busy);
-  $('#updSideTitle').textContent = ready ? 'Обновить программу' : 'Загрузка обновления';
-  $('#updSideSub').textContent = ready ? `Версия ${u.version || ''} · перезапуск` : `Версия ${u.version || ''} · ${u.percent || 0}%`;
+  $('#updSideTitle').textContent = ready ? 'Обновить программу' : avail ? 'Доступно обновление' : 'Загрузка обновления';
+  $('#updSideSub').textContent = ready ? `Версия ${u.version || ''} · перезапуск` : avail ? `Версия ${u.version || ''} · нажмите, чтобы скачать` : `Версия ${u.version || ''} · ${u.percent || 0}%`;
   $('#updSideProg').style.width = (busy ? (u.percent || 0) : 0) + '%';
   $('#updBar').classList.toggle('on', u.state === 'downloading');
   $('#updFill').style.width = (u.percent || 0) + '%';
   updBtn.disabled = u.state === 'checking' || u.state === 'downloading';
-  updBtn.classList.toggle('primary', u.state === 'ready');
-  updBtn.textContent = u.state === 'ready' ? 'Установить и перезапустить' : 'Проверить обновления';
+  updBtn.classList.toggle('primary', ready || avail);
+  updBtn.textContent = ready ? 'Установить и перезапустить' : avail ? 'Скачать обновление' : 'Проверить обновления';
 }
 /* ---------- «Что нового» ---------- */
 const notesModal = $('#notesModal');
@@ -604,11 +608,14 @@ $('#notesClose').addEventListener('click', closeNotes);
 notesModal.addEventListener('click', e => { if (e.target === notesModal) closeNotes(); });
 addEventListener('keydown', e => { if (e.key === 'Escape') closeNotes(); });
 
-$('#updSide').addEventListener('click', () => { if (updState === 'ready' && hasMoon) window.moon.installUpdate(); });
+$('#updSide').addEventListener('click', () => {
+  if (!hasMoon) return;
+  if (updState === 'ready') window.moon.installUpdate(); else if (updState === 'available') window.moon.downloadUpdate();
+});
 
 updBtn.addEventListener('click', () => {
   if (!hasMoon) return renderUpdate({ state: 'dev' });
-  if (updState === 'ready') window.moon.installUpdate(); else window.moon.checkUpdate();
+  if (updState === 'ready') window.moon.installUpdate(); else if (updState === 'available') window.moon.downloadUpdate(); else window.moon.checkUpdate();
 });
 
 /* ---------- оверлей для OBS ---------- */
@@ -621,7 +628,7 @@ const tiles = OV.THEMES.map(th => {
   btn.className = 'theme-tile';
   btn.innerHTML = '<div class="tile-stage"><div class="scaler"><div class="tile-ov"></div></div></div><span></span>';
   $('span', btn).textContent = th.name;
-  const view = OV.create($('.tile-ov', btn), { streamSize: ['subtitles', 'capsule'].includes(th.id) ? 76 : 40, streamLines: 3, streamWords: true, streamCover: false, streamMeta: false, streamTheme: th.id, streamAccent: th.accent });
+  const view = OV.create($('.tile-ov', btn), { streamSize: ['subtitles', 'capsule'].includes(th.id) ? 76 : 40, streamLines: 3, streamWords: true, streamCover: false, streamMeta: false, streamTheme: th.id, streamAccent: th.accent }, { base: [800, 230] });
   view.setTrack(DEMO.track); view.setCover(DEMO_COVER); view.setLyrics(DEMO.lyrics, 'ok'); view.setPlaying(true);
   btn.addEventListener('click', () => save({ streamTheme: th.id, streamAccent: th.accent }));
   $('#themeGrid').appendChild(btn);

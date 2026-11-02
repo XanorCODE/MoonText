@@ -88,5 +88,15 @@
     for (const k in v) el.style.setProperty(k, v[k]);
   };
 
+  /**
+   * Текущее слово на плашке увеличивается (scale 1.12, у «pop» — 1.32) от центра, и у длинного слова это съедает отступ до соседей:
+   * «Я безупречный парень» слипалось. Длинным словам добавляем поля по бокам заранее, чтобы пробелы не пропадали.
+   */
+  E.padPillWords = function (els, anim) {
+    const k = anim === 'pop' ? .16 : .062;
+    const w = els.map(e => (e ? e.offsetWidth : 0));
+    els.forEach((e, i) => { if (e) e.style.paddingInline = Math.max(0, w[i] * k - 5).toFixed(1) + 'px'; });
+  };
+
   g.MoonEngine = E;
 })(window);

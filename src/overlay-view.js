@@ -42,7 +42,7 @@
     </div>
     <div class="ov-pill"><span class="ov-pm"></span><div class="ov-pv"><div class="ov-pt"></div></div></div>`;
 
-  function create(root, force = {}) {
+  function create(root, force = {}, opts = {}) {
     root.classList.add('ov', 'is-idle');
     root.innerHTML = TEMPLATE;
     const $ = s => root.querySelector(s);
@@ -57,6 +57,19 @@
     let pc = { adaptive: true, maxW: 320, moon: true, anim: 'run', wave: false };
     let pillLi = -1, pillWord = -2, marquee = null, cfgSig = '';
 
+    // Масштаб по размеру источника: оверлей рассчитан на base (по умолчанию 1280×360), в OBS окно может быть любого размера —
+    // всё (текст, плашка, отступы) пропорционально растёт или уменьшается и всегда помещается целиком.
+    const base = Array.isArray(opts.base) ? opts.base : [1280, 360];
+    let sizePx = 56, scale = 1;
+    function fit() {
+      const w = root.clientWidth, h = root.clientHeight;
+      const k = w > 0 && h > 0 ? Math.min(4, Math.max(.25, Math.min(w / base[0], h / base[1]))) : 1;
+      root.style.setProperty('--fs', (sizePx * k).toFixed(2) + 'px');
+      root.style.setProperty('--zs', (sizePx / 30 * k).toFixed(3));
+      if (Math.abs(k - scale) > .005) { scale = k; curKey = null; pillLi = -1; pillWord = -2; }     // размеры изменились — перерисовать строки
+    }
+    if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(root);
+
     function apply(s) {
       const v = { ...s, ...force };
       root.dataset.theme = v.streamTheme;
@@ -66,7 +79,6 @@
       root.dataset.cover = v.streamCover ? '1' : '0';
       root.dataset.meta = v.streamMeta ? '1' : '0';
       root.style.setProperty('--acc', v.streamAccent);
-      root.style.setProperty('--fs', v.streamSize + 'px');
       root.style.setProperty('--bg', (v.streamBg / 100).toFixed(2));
       root.style.setProperty('--ff', FONTS[v.streamFont] || FONTS.sans);
 
@@ -76,10 +88,11 @@
       E.applyPillVars(pillEl, { pillAccent: v.pillAccent || '#ffffff', pillOpacity: Number.isFinite(+v.pillOpacity) ? +v.pillOpacity : 94, pillRound: v.pillRound !== false, pillMoon: pc.moon });
       pillEl.dataset.size = size; pillEl.dataset.anim = pc.anim; pillEl.dataset.wave = pc.wave ? '1' : '0'; pillEl.dataset.eco = v.pillEco ? '1' : '0';
       pillEl.style.setProperty('--dur', (1.3 - speed * 0.011).toFixed(2) + 's');
-      root.style.setProperty('--zs', (v.streamSize / 30).toFixed(3));                       // размер текста оверлея масштабирует плашку
       root.style.setProperty('--zo', v.streamAlign === 'left' ? '0%' : v.streamAlign === 'right' ? '100%' : '50%');
       const sig = [v.streamTheme, size, pc.adaptive, pc.maxW, pc.moon, pc.anim, pc.wave, v.pillRound, v.pillOpacity, v.pillAccent].join('|');
       if (sig !== cfgSig) { cfgSig = sig; curKey = null; pillLi = -1; pillWord = -2; }       // пересобрать плашку под новые настройки
+      sizePx = Number(v.streamSize) || 56;
+      fit();                                                                                  // размер текста оверлея масштабирует и плашку
     }
 
     function setText(el, text) { el.textContent = text || ''; el.classList.toggle('empty', !text); words = el === slot.cur ? [] : words; }
@@ -169,6 +182,7 @@
         w.pel = sp;
         ptEl.appendChild(sp);
       });
+      E.padPillWords(lines[li].words.map(w => w.pel), pc.anim);
       ptEl.style.transform = 'translateX(60px)';
       void ptEl.offsetWidth; ptEl.style.transition = '';
     }

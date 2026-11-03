@@ -119,6 +119,13 @@ function flushSettings() {
   try { fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2)); } catch { /* не критично */ }
 }
 
+/* ---------- event log for problem reports ---------- */
+const eventLog = [];
+function logEvent(msg) {
+  eventLog.push(`${new Date().toTimeString().slice(0, 8)} ${String(msg).slice(0, 220)}`);
+  if (eventLog.length > 60) eventLog.shift();
+}
+
 /* ---------- журнал плашки ---------- */
 let lastVisSig = '';
 function plog(msg) {
@@ -146,7 +153,9 @@ function broadcast(msg) {
     console.log('[moontext]', JSON.stringify(brief).slice(0, 300));
   }
   for (const w of [mainWin, pillWin]) {
-    if (w && !w.isDestroyed()) w.webContents.send('msg', msg);
+    if (!w || w.isDestroyed()) continue;
+    if (msg.type === 'state' && w === mainWin && (!w.isVisible() || w.isMinimized())) continue;     // hidden window gets the state on show
+    w.webContents.send('msg', msg);
   }
   if (msg.type !== 'update' && msg.type !== 'stream') stream.send(msg);
 }
@@ -187,6 +196,9 @@ function createMain() {
     mainWin.hide();
   });
   mainWin.on('closed', () => { mainWin = null; });
+  const resync = () => { if (snap.state && mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('msg', { type: 'state', state: snap.state }); };
+  mainWin.on('show', resync);
+  mainWin.on('restore', resync);
 }
 
 function showMain() {
@@ -350,11 +362,12 @@ async function loadLyrics(track, attempt = 1) {
   let payload;
   try {
     const r = await lrclib.getLyrics(track);
-    payload = r.found ? { status: 'ok', ...r } : { status: 'notfound' };
+    payload = r.found ? { status: 'ok', ...r } : { status: 'notfound', report: r.report };
   } catch (e) {
-    payload = { status: 'error', message: String(e.message || e) };
+    payload = { status: 'error', message: String(e.message || e), report: e.report };
   }
   if (token !== lyricsToken) return;           // трек уже сменился
+  logEvent(`lyrics ${payload.status}${payload.source ? ' ' + payload.source : ''}${payload.report ? ' ' + JSON.stringify(payload.report) : ''}${payload.message ? ' ' + payload.message : ''}`);
   snap.lyrics = { key: track.key, ...payload };
   broadcast({ type: 'lyrics', ...snap.lyrics });
   // сеть могла моргнуть — пробуем ещё пару раз
@@ -378,6 +391,7 @@ function coverFallback(track) {
 let seekGuard = null;     // { sec, at, until }: куда мы только что перемотали
 let seenSources = [];     // приложения, у которых сейчас есть медиа-сеанс (для списка источников в настройках)
 media.on('message', m => {
+  if (m.type === 'error') { logEvent('media: ' + m.message); return; }
   if (m.type === 'sources') {
     seenSources = Array.isArray(m.apps) ? m.apps.filter(x => typeof x === 'string').slice(0, 50) : [];
     broadcast({ type: 'sources', apps: seenSources });
@@ -455,7 +469,7 @@ function initUpdater() {
   autoUpdater.on('update-not-available', () => setUpd({ state: 'none' }));
   autoUpdater.on('download-progress', p => setUpd({ state: 'downloading', percent: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', i => setUpd({ state: 'ready', version: i.version }));
-  autoUpdater.on('error', e => setUpd({ state: 'error', message: String(e?.message || e).split('\n')[0] }));
+  autoUpdater.on('error', e => { const msg = String(e?.message || e).split('\n')[0]; logEvent('update: ' + msg); setUpd({ state: 'error', message: msg }); });
   setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
   setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 3600 * 1000);
 }
@@ -486,6 +500,30 @@ ipcMain.handle('open-link', (_, key) => {
   if (key === 'telegram') shell.openExternal('https://t.me/xanorcode');
   if (key === 'github') shell.openExternal('https://github.com/XanorCODE');
 });
+function buildReport() {
+  const t = snap.track, ly = snap.lyrics;
+  const lyr = !ly ? 'нет данных'
+    : ly.status === 'ok' ? `найден (${ly.edited ? 'свой' : ly.source}${ly.synced ? `, синхронизирован, строк: ${ly.lines?.length || 0}` : ', без синхронизации'})`
+    : `${ly.status}${ly.report ? ' ' + JSON.stringify(ly.report) : ''}${ly.message ? ' ' + ly.message : ''}`;
+  let pill = [];
+  try { pill = fs.readFileSync(path.join(app.getPath('userData'), 'pill.log'), 'utf8').split('\n').filter(Boolean).slice(-15); } catch { /* no log yet */ }
+  return [
+    '```text',
+    `MoonText ${app.getVersion()} · Windows ${require('os').release()} · Electron ${process.versions.electron}`,
+    `Трек: ${t ? `${t.artist} — ${t.title} (${t.app})` : 'ничего не играет'}`,
+    `Текст: ${lyr}`,
+    `Источники: ${seenSources.join(', ') || 'нет'}; игнорируются: ${(settings.ignoredApps || []).join(', ') || 'нет'}`,
+    `Настройки: ${JSON.stringify(settings)}`,
+    '', 'Журнал:', ...eventLog, '', 'Плашка:', ...pill,
+    '```',
+  ].join('\n');
+}
+ipcMain.handle('diag:report', () => {
+  const text = buildReport();
+  clipboard.writeText(text);
+  shell.openExternal('https://github.com/XanorCODE/moontext/issues/new');
+  return { ok: true, size: text.length };
+});
 ipcMain.handle('stream:open', () => {
   if (stream.status.running) shell.openExternal(`http://localhost:${stream.status.port}/overlay`);
 });
@@ -510,6 +548,7 @@ ipcMain.handle('lyrics:save', (_, x) => {
   if (!id) return { ok: false };
   const result = lrclib.saveEdited({ ...id, lines: x.lines, plain: x.plain });
   if (!result) return { ok: false };
+  logEvent('lyrics saved by user');
   if (isPlaying(id)) {
     lyricsToken++;
     snap.lyrics = { key: snap.track.key, status: 'ok', ...result };
@@ -521,6 +560,7 @@ ipcMain.handle('lyrics:reset', (_, x) => {
   const id = idOf(x);
   if (!id) return { ok: false };
   lrclib.resetCached(id.artist, id.title);
+  logEvent('lyrics reset by user');
   if (isPlaying(id)) loadLyrics(snap.track);
   return { ok: true };
 });
@@ -552,10 +592,17 @@ app.whenReady().then(() => {
   createMain();
   createTray();
   syncPill();
-  initUpdater();
-  syncStream();
+  logEvent('start');
   media.setIgnored(settings.ignoredApps);
-  media.start();
+  // heavy background work starts after the window has loaded
+  let started = false;
+  const startLate = () => {
+    if (started) return;
+    started = true;
+    setTimeout(() => { initUpdater(); syncStream(); media.start(); }, 300);
+  };
+  mainWin.webContents.once('did-finish-load', startLate);
+  setTimeout(startLate, 2500);
   setInterval(placePill, 4000);                       // геометрия: панель могла сдвинуться
   // клик по панели задач поднимает её над остальными topmost-окнами — возвращаем плашку почти сразу
   setInterval(() => {

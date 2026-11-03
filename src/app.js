@@ -266,13 +266,28 @@ function onMsg(m) {
   }
 }
 
+const WHY_LRC = { empty: 'в LRCLIB такой песни нет', limit: 'LRCLIB временно ограничил запросы, MoonText повторит попытку сам', server: 'сервер LRCLIB сейчас не отвечает', network: 'нет связи с lrclib.net, проверьте интернет' };
+const WHY_GEN = { empty: 'на Genius не нашлось', error: 'Genius недоступен' };
+function whyNoLyrics(r) {
+  if (!r) return '';
+  const parts = [WHY_LRC[r.lrclib], WHY_GEN[r.genius]].filter(Boolean);
+  if (!parts.length) return '';
+  const s = parts.join('; ');
+  return s[0].toUpperCase() + s.slice(1) + '. Свой текст можно вставить: откройте трек в «Недавних».';
+}
+
 function onLyrics(m) {
   if (!track || m.key !== track.key) return;
   if (m.status === 'ok' && m.synced && m.lines?.length) bigView.setLyrics(m.lines, 'ok');
   else bigView.setLyrics(null, m.status === 'loading' ? 'loading' : 'notfound');
   if (m.status === 'loading') { setChip('Ищу текст…', false); setEmpty('loading', 'Ищу текст…', 'LRCLIB'); return; }
-  if (m.status === 'error') { setChip('Нет связи с LRCLIB', false); setEmpty('idle', 'Нет связи', 'Не удалось связаться с lrclib.net. Проверьте интернет.'); return; }
-  if (m.status === 'notfound') { setChip('Текст не найден', false); setEmpty('idle', 'Текст не найден', 'Ни в LRCLIB, ни в Genius нет текста для этого трека.'); return; }
+  if (m.status === 'error') {
+    const limit = m.report?.lrclib === 'limit', server = m.report?.lrclib === 'server';
+    setChip(limit ? 'LRCLIB: лимит запросов' : server ? 'LRCLIB недоступен' : 'Нет связи с LRCLIB', false);
+    setEmpty('idle', limit ? 'Лимит запросов' : server ? 'Сервис недоступен' : 'Нет связи', whyNoLyrics(m.report) || 'Не удалось связаться с lrclib.net. Проверьте интернет.');
+    return;
+  }
+  if (m.status === 'notfound') { setChip('Текст не найден', false); setEmpty('idle', 'Текст не найден', whyNoLyrics(m.report) || 'Ни в LRCLIB, ни в Genius нет текста для этого трека.'); return; }
   if (m.instrumental) { setChip('Инструментал', false); setEmpty('idle', 'Инструментал', 'У этого трека нет слов.'); return; }
   if (m.lines?.length) {
     setEmpty(null);
@@ -335,7 +350,14 @@ const tCurEl = $('#tCur');
 function nextFrame(slow) {
   if (slow) setTimeout(() => requestAnimationFrame(frame), 200); else requestAnimationFrame(frame);
 }
+let frameIdle = false;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !frameIdle) return;
+  frameIdle = false;
+  requestAnimationFrame(frame);
+});
 function frame() {
+  if (document.hidden) { frameIdle = true; return; }
   const lively = curPage === 'now' || curPage === 'bar' || curPage === 'stream';
   if (!lively) return nextFrame(true);
   // заливка слова перерисовывается примерно 30 раз в секунду (в фоне — 15): на глаз то же самое, а нагрузка на видеокарту вдвое меньше
@@ -760,6 +782,12 @@ $('#strCopy').addEventListener('click', async () => {
   setTimeout(() => { btn.textContent = 'Копировать'; }, 1600);
 });
 $('#ghBtn').addEventListener('click', () => { if (hasMoon) window.moon.openLink('github'); else window.open('https://github.com/XanorCODE', '_blank'); });
+$('#reportBtn').addEventListener('click', async () => {
+  const b = $('#reportBtn');
+  if (hasMoon) await window.moon.reportProblem(); else window.open('https://github.com/XanorCODE/moontext/issues/new', '_blank');
+  b.textContent = hasMoon ? 'Скопировано ✓' : 'Открыто';
+  setTimeout(() => { b.textContent = 'Сообщить о проблеме'; }, 2500);
+});
 $('#tgBtn').addEventListener('click', () => { if (hasMoon) window.moon.openLink('telegram'); else window.open('https://t.me/xanorcode', '_blank'); });
 $('#strOpen').addEventListener('click', () => { if (hasMoon) window.moon.openStream(); });
 

@@ -8,6 +8,25 @@ const edIsPlaying = () => !!(track && ed.item && lc(track.artist) === lc(ed.item
 const r2 = t => Math.round(t * 100) / 100;
 const edFmt = t => t == null ? '' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 const edWords = text => String(text).trim().split(/\s+/).filter(Boolean);
+const hist = { undo: [], redo: [], key: '', at: 0 };
+const edSnap = () => JSON.stringify({ rows: ed.rows, cur: ed.cur, k: ed.k });
+function edPush() {
+  const s = edSnap();
+  if (hist.undo[hist.undo.length - 1] === s) return;
+  hist.undo.push(s);
+  if (hist.undo.length > 200) hist.undo.shift();
+  hist.redo.length = 0;
+}
+function edRestore(from, to) {
+  const s = from.pop();
+  if (!s) return;
+  to.push(edSnap());
+  const st = JSON.parse(s);
+  ed.rows = st.rows; ed.cur = st.cur; ed.k = st.k; ed.dirty = true;
+  edRender();
+}
+const edUndoStep = () => edRestore(hist.undo, hist.redo);
+const edRedoStep = () => edRestore(hist.redo, hist.undo);
 const edNow = () => r2(Math.max(0, clock.now() + settings.offset / 1000 - REACTION));
 function edParseTime(s) {
   const m = String(s).trim().match(/^(?:(\d+):)?(\d+(?:[.,]\d+)?)$/);
@@ -108,6 +127,8 @@ function edStatus() {
   $('#edTrans').classList.toggle('off', !playing);
   $('#edPlay').disabled = !playing || ed.rows[ed.cur]?.t == null;
   $('#edAuto').hidden = !words;
+  $('#edUndo').disabled = !hist.undo.length;
+  $('#edRedo').disabled = !hist.redo.length;
   $$('#edMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === ed.mode));
   $('#edHint').textContent = !playing
     ? 'Эта песня сейчас не играет. Запустите её в плеере (Spotify, браузер и другие), и здесь заработают управление и отметки. Время и текст можно править и вручную.'
@@ -143,6 +164,7 @@ function edSelect(i, scroll, k) {
 function edSetTime(i, t) {
   const r = ed.rows[i];
   if (!r) return;
+  edPush();
   const old = r.t;
   r.t = t == null ? null : Math.max(0, r2(t));
   if (r.t == null) r.w = null;
@@ -175,6 +197,7 @@ function edTapWord() {
   const r = ed.rows[ed.cur];
   const n = edWords(r.text).length;
   if (!n) return edSelect(edNextPos(ed.cur, 0)[0], true);
+  edPush();
   const now = edNow();
   const w = edRowW(r) || (r.w = Array(n).fill(null));
   w[ed.k] = now;
@@ -192,7 +215,7 @@ function edUndoWord() {
   const [i, k] = edPrevPos(ed.cur, ed.k);
   const r = ed.rows[i];
   const w = r && edRowW(r);
-  if (w) { w[k] = null; ed.dirty = true; edUpdateRow(i); }
+  if (w) { edPush(); w[k] = null; ed.dirty = true; edUpdateRow(i); }
   edSelect(i, i !== ed.cur, k);
 }
 
@@ -200,6 +223,7 @@ function edNudgeWord(d) {
   const r = ed.rows[ed.cur];
   const w = r && edRowW(r);
   if (!w || w[ed.k] == null) return;
+  edPush();
   w[ed.k] = Math.max(0, r2(w[ed.k] + d));
   if (ed.k === 0) r.t = w[0];
   ed.dirty = true;
@@ -218,6 +242,7 @@ function edAuto() {
   const idx = ed.rows.map((r, i) => i).filter(i => ed.rows[i].t != null && edWords(ed.rows[i].text).length).sort((a, b) => ed.rows[a].t - ed.rows[b].t);
   if (!idx.length) return;
   if (ed.rows.some(r => edComplete(r)) && !confirm('Заново посчитать времена слов во всех строках? Ваша разметка слов будет заменена.')) return;
+  edPush();
   const built = E.buildLines(idx.map(i => [ed.rows[i].t, ed.rows[i].text]), 0);
   if (built.length !== idx.length) return;
   idx.forEach((i, j) => { ed.rows[i].w = built[j].words.map(w => r2(w.s)); });
@@ -263,6 +288,7 @@ async function openEditor(item) {
   if (!item || typeof item.title !== 'string') return;
   ed.item = { title: item.title, artist: item.artist || '' };
   ed.cur = 0; ed.k = 0; ed.dirty = false; ed.mode = 'lines'; ed.sung = -1; ed.lastSung = -1; ed.touched = 0;
+  hist.undo = []; hist.redo = []; hist.key = '';
   let res = null;
   if (hasMoon) res = await window.moon.lyricsGet(ed.item);
   else res = { synced: true, lines: DEMO.lyrics, plain: [], edited: false };
@@ -319,6 +345,9 @@ edList.addEventListener('input', e => {
   if (!row) return;
   const i = +row.dataset.i;
   const r = ed.rows[i];
+  const key = i + e.target.className;
+  if (key !== hist.key || Date.now() - hist.at > 1000) edPush();
+  hist.key = key; hist.at = Date.now();
   if (e.target.classList.contains('ed-x')) r.text = e.target.value;
   else {
     const t = e.target.value.trim() === '' ? null : edParseTime(e.target.value);
@@ -349,6 +378,7 @@ edList.addEventListener('click', e => {
   if (chip) { edSelect(i, false, +chip.dataset.k); return; }
   const a = e.target.closest('button')?.dataset.a;
   if (!a) { if (i !== ed.cur) edSelect(i); return; }
+  edPush();
   ed.dirty = true;
   if (a === 'dn') edNudge(i, -0.1);
   else if (a === 'up') edNudge(i, 0.1);
@@ -378,6 +408,8 @@ $('#edSeek').addEventListener('click', e => {
 edList.addEventListener('wheel', () => { ed.touched = Date.now(); }, { passive: true });
 edList.addEventListener('pointerdown', () => { ed.touched = Date.now(); });
 
+$('#edUndo').addEventListener('click', edUndoStep);
+$('#edRedo').addEventListener('click', edRedoStep);
 $('#edTap').addEventListener('click', edTap);
 $('#edAuto').addEventListener('click', edAuto);
 $('#edMode').addEventListener('click', e => {
@@ -393,6 +425,7 @@ $('#edPlay').addEventListener('click', () => {
 $('#edShift').addEventListener('click', e => {
   const s = parseFloat(e.target.closest('button')?.dataset.shift);
   if (!Number.isFinite(s)) return;
+  edPush();
   ed.rows.forEach(r => {
     if (r.t == null) return;
     r.t = Math.max(0, r2(r.t + s));
@@ -402,6 +435,7 @@ $('#edShift').addEventListener('click', e => {
   edRender();
 });
 $('#edAdd').addEventListener('click', () => {
+  edPush();
   ed.rows.push({ t: null, text: '', w: null });
   ed.cur = ed.rows.length - 1; ed.k = 0;
   ed.dirty = true;
@@ -415,6 +449,7 @@ $('#edPasteOk').addEventListener('click', () => {
   const rows = edParseText($('#edPasteText').value);
   if (!rows.length) return;
   if (ed.rows.some(r => r.text.trim()) && !confirm('Заменить текущий текст вставленным?')) return;
+  edPush();
   ed.rows = rows; ed.cur = 0; ed.k = 0; ed.dirty = true;
   $('#edPasteBox').hidden = true;
   edRender();
@@ -436,6 +471,9 @@ edModal.addEventListener('mouseup', e => e.target.closest?.('button')?.blur());
 addEventListener('keydown', e => {
   if (!edModal.classList.contains('open')) return;
   const typing = e.target.matches?.('input, textarea');
+  const ctrl = e.ctrlKey || e.metaKey, kl = e.key.toLowerCase();
+  if (ctrl && (kl === 'z' || kl === 'я')) { e.preventDefault(); if (e.shiftKey) edRedoStep(); else edUndoStep(); return; }
+  if (ctrl && (kl === 'y' || kl === 'н')) { e.preventDefault(); edRedoStep(); return; }
   if (e.key === 'Escape') { e.preventDefault(); if (!$('#edPasteBox').hidden) $('#edPasteBox').hidden = true; else edClose(); return; }
   if (typing || !$('#edPasteBox').hidden) return;
   const words = ed.mode === 'words';

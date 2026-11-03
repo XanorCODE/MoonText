@@ -55,6 +55,7 @@
 
     <section class="ed-tools">
       <span class="ed-seg" id="edMode"><button class="on" data-mode="lines">Строки</button><button data-mode="words">Слова</button></span>
+      <span class="ed-group"><button class="btn" id="edUndo" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button><button class="btn" id="edRedo" title="Повторить (Ctrl+Y)" aria-label="Повторить">↷</button></span>
       <span class="ed-group" id="edShift"><b>Сдвиг всех</b>
         <button class="btn" data-shift="-0.5">−0.5</button><button class="btn" data-shift="-0.1">−0.1</button><button class="btn" data-shift="0.1">+0.1</button><button class="btn" data-shift="0.5">+0.5</button>
       </span>
@@ -367,6 +368,10 @@
             <button class="btn" id="updBtn">Проверить обновления</button>
           </div>
           <div class="upd-bar" id="updBar"><i id="updFill"></i></div>
+          <div class="row">
+            <div><div class="card-t">Сообщить о проблеме</div><div class="card-d">Скопирует версию, текущий трек, настройки и журнал в буфер и откроет страницу GitHub Issues: вставьте данные в описание</div></div>
+            <button class="btn" id="reportBtn">Сообщить о проблеме</button>
+          </div>
           <div class="row">
             <div><div class="card-t">Разработчик — XanorCODE</div><div class="card-d">Программа сделана XanorCODE. Новости и обратная связь — в Telegram, исходный код — на GitHub.</div></div>
             <div class="btn-row"><button class="btn" id="ghBtn">GitHub</button><button class="btn primary" id="tgBtn">Telegram-канал</button></div>

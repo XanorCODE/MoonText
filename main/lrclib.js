@@ -36,11 +36,27 @@ const clean = s => s
   .replace(/\s*-\s*(remaster(ed)?|single|radio).*$/i, '')
   .trim();
 
+let nextAt = 0;
+async function slot() {
+  const now = Date.now(), at = Math.max(now, nextAt);
+  nextAt = at + 350;
+  if (at > now) await new Promise(r => setTimeout(r, at - now));
+}
+
 async function getJson(url) {
-  const res = await doFetch(url, { headers: HEADERS, signal: AbortSignal.timeout(9000) });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error('LRCLIB ' + res.status);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    await slot();
+    const res = await doFetch(url, { headers: HEADERS, signal: AbortSignal.timeout(9000) });
+    if (res.status === 404) return null;
+    if (res.status === 429 && attempt < 3) {
+      const ra = parseFloat(res.headers.get('retry-after'));
+      const wait = Math.min(8, Number.isFinite(ra) && ra > 0 ? ra : 1.5 * (attempt + 1));
+      nextAt = Math.max(nextAt, Date.now() + wait * 1000);
+      continue;
+    }
+    if (!res.ok) throw new Error('LRCLIB ' + res.status);
+    return res.json();
+  }
 }
 
 function pick(list, dur) {
@@ -61,7 +77,7 @@ async function fetchLyrics({ title, artist, album, dur }) {
   try {
     try { hit = await getJson(`${API}/get?${q}`); } catch (e) { lrcError = e; }      // пробуем поиск
     if (!hit || (!hit.syncedLyrics && !hit.plainLyrics)) {
-      if (lrcError && !/LRCLIB \d/.test(lrcError.message)) throw lrcError;          // сервер недоступен — повторять запросы к нему незачем
+      if (lrcError && (!/LRCLIB \d/.test(lrcError.message) || /429/.test(lrcError.message))) throw lrcError;          // сервер недоступен или ограничил запросы — повторять запросы к нему незачем
       const s = await getJson(`${API}/search?${new URLSearchParams({ track_name: t, artist_name: a })}`);
       lrcError = null;                          // поиск ответил — сервер доступен
       hit = s && pick(s, dur);
@@ -71,14 +87,16 @@ async function fetchLyrics({ title, artist, album, dur }) {
       }
     }
   } catch (e) { lrcError = e; hit = null; }
+  const report = { lrclib: !lrcError ? (hit ? 'ok' : 'empty') : /429/.test(lrcError.message) ? 'limit' : /LRCLIB \d/.test(lrcError.message) ? 'server' : 'network', genius: 'skipped' };
   if (!hit) {
     // в LRCLIB текста нет (или он недоступен) — пробуем Genius
     try {
       const g = await fetchGenius(doFetch, { title: t, artist: a });
       if (g) return g;
-    } catch { /* запасной источник недоступен */ }
-    if (lrcError) throw lrcError;               // нигде не нашли и LRCLIB не отвечал — это «нет связи», а не «нет текста»
-    return { found: false };
+      report.genius = 'empty';
+    } catch { report.genius = 'error'; }
+    if (lrcError) throw Object.assign(lrcError, { report });       // нигде не нашли и LRCLIB не отвечал — это «нет связи», а не «нет текста»
+    return { found: false, report };
   }
   if (hit.instrumental) return { found: true, instrumental: true, lines: [] };
   return {
@@ -142,7 +160,7 @@ async function getLyrics(raw) {
 
   const fetched = await fetchLyrics(track);
   const result = fetched.found ? normalizeResult(fetched) : null;
-  if (!result) return { found: false };
+  if (!result) return { found: false, report: fetched.report };
   try {
     fs.writeFileSync(file, JSON.stringify({ title: track.title, artist: track.artist, saved: Date.now(), result }));
   } catch { /* кэш необязателен */ }

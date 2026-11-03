@@ -232,7 +232,11 @@ function renderRecent(r) {
   box.insertAdjacentHTML('beforeend', r.map((x, i) => `
     <div class="rec ${i === 0 ? 'on' : ''}"><i class="rm${thumbStyle(x) ? ' has-img' : ''}" style="--ph:${30 + (hueOf(x.title) % 50)}%;${thumbStyle(x)}"></i>
       <div><b></b><small></small></div>${i === 0 && !player.classList.contains('idle') ? '<span class="eq"><i></i><i></i><i></i><i></i></span>' : ''}</div>`).join(''));
-  $$('.rec', box).forEach((n, i) => { if (r[i]) { $('b', n).textContent = r[i].title; $('small', n).textContent = r[i].artist; } });
+  $$('.rec', box).forEach((n, i) => {
+    if (!r[i]) return;
+    $('b', n).textContent = r[i].title; $('small', n).textContent = r[i].artist;
+    n.addEventListener('click', () => openEditor(r[i]));
+  });
 }
 
 /* ---------- сообщения из main ---------- */
@@ -272,11 +276,11 @@ function onLyrics(m) {
   if (m.instrumental) { setChip('Инструментал', false); setEmpty('idle', 'Инструментал', 'У этого трека нет слов.'); return; }
   if (m.lines?.length) {
     setEmpty(null);
-    setChip('LRCLIB · синхронизировано');
+    setChip(m.edited ? 'Свой текст · синхронизировано' : 'LRCLIB · синхронизировано');
     renderLyrics(m.lines);
   } else if (m.plain?.length) {
     setEmpty(null);
-    setChip(`${m.source === 'Genius' ? 'Genius' : 'LRCLIB'} · без синхронизации`, false);
+    setChip(`${m.edited ? 'Свой текст' : m.source === 'Genius' ? 'Genius' : 'LRCLIB'} · без синхронизации`, false);
     renderLyrics([], m.plain);
   } else {
     setChip('Текст не найден', false);
@@ -580,25 +584,38 @@ const DEMO_LIB = [
   { title: 'Лунный свет', artist: 'MoonText Demo' }, { title: 'Ночной город', artist: 'Неон' }, { title: 'Тихая вода', artist: 'Аврора' },
   { title: 'Полночь', artist: 'Сириус' }, { title: 'Дыхание', artist: 'Орбита' }, { title: 'Эхо', artist: 'Лира' },
 ];
-let libToken = 0;
+let libToken = 0, libAll = [];
 async function loadLibrary() {
   const token = ++libToken;
-  let list = hasMoon ? await window.moon.library() : DEMO_LIB;
-  if (token !== libToken) return;                       // пришёл более свежий запрос
-  list = (Array.isArray(list) ? list : []).filter(x => x && typeof x.title === 'string');
+  const list = hasMoon ? await window.moon.library() : DEMO_LIB;
+  if (token !== libToken) return;
+  libAll = (Array.isArray(list) ? list : []).filter(x => x && typeof x.title === 'string');
+  renderLibrary();
+}
+
+function renderLibrary(typing) {
+  const q = $('#libSearch').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const list = libAll.filter(x => q.every(w => `${x.title} ${x.artist}`.toLowerCase().includes(w)));
   const grid = $('#libGrid');
+  grid.classList.toggle('filtering', !!typing);
   if (!list.length) {
-    grid.innerHTML = '<div class="card glass" style="grid-column:1/-1"><div class="card-t">Пока пусто</div><div class="card-d">Тексты появятся здесь, когда MoonText найдёт их для проигранных треков.</div></div>';
+    grid.innerHTML = libAll.length
+      ? '<div class="card glass" style="grid-column:1/-1"><div class="card-t">Ничего не найдено</div><div class="card-d">Попробуйте другое название или исполнителя.</div></div>'
+      : '<div class="card glass" style="grid-column:1/-1"><div class="card-t">Пока пусто</div><div class="card-d">Тексты появятся здесь, когда MoonText найдёт их для проигранных треков.</div></div>';
     return;
   }
   grid.innerHTML = list.map((x, i) => `
     <div class="lib-card glass" style="--i:${i}">
       <div class="lib-art${thumbStyle(x) ? ' has-img' : ''}" style="--ph:${30 + (hueOf(x.title) % 50)}%;background:radial-gradient(circle at 70% 25%, hsl(${hueOf(x.title)} 35% 22%), #05060a 70%);${thumbStyle(x)}">
-        ${track && x.title === track.title ? '<em>Сейчас</em>' : ''}</div>
+        ${track && x.title === track.title ? '<em>Сейчас</em>' : ''}${x.edited ? '<em class="edited">Изменён</em>' : ''}</div>
       <b></b><small></small>
     </div>`).join('');
-  $$('.lib-card', grid).forEach((n, i) => { $('b', n).textContent = list[i].title; $('small', n).textContent = list[i].artist; });
+  $$('.lib-card', grid).forEach((n, i) => {
+    $('b', n).textContent = list[i].title; $('small', n).textContent = list[i].artist;
+    n.addEventListener('click', () => openEditor(list[i]));
+  });
 }
+$('#libSearch').addEventListener('input', () => renderLibrary(true));
 
 /* ---------- подсветка стекла за курсором ---------- */
 addEventListener('pointermove', e => {

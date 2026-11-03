@@ -496,6 +496,34 @@ ipcMain.handle('control', (_, cmd) => {
   }
 });
 ipcMain.handle('library', () => lrclib.library());
+
+const idOf = x => (x && typeof x.title === 'string' && x.title.length <= 200 && (x.artist === undefined || (typeof x.artist === 'string' && x.artist.length <= 200)))
+  ? { title: x.title, artist: x.artist || '' } : null;
+const isPlaying = id => snap.track && `${snap.track.artist}|${snap.track.title}`.toLowerCase() === `${id.artist}|${id.title}`.toLowerCase();
+
+ipcMain.handle('lyrics:get', (_, x) => {
+  const id = idOf(x);
+  return id ? lrclib.readCached(id.artist, id.title) : null;
+});
+ipcMain.handle('lyrics:save', (_, x) => {
+  const id = idOf(x);
+  if (!id) return { ok: false };
+  const result = lrclib.saveEdited({ ...id, lines: x.lines, plain: x.plain });
+  if (!result) return { ok: false };
+  if (isPlaying(id)) {
+    lyricsToken++;
+    snap.lyrics = { key: snap.track.key, status: 'ok', ...result };
+    broadcast({ type: 'lyrics', ...snap.lyrics });
+  }
+  return { ok: true };
+});
+ipcMain.handle('lyrics:reset', (_, x) => {
+  const id = idOf(x);
+  if (!id) return { ok: false };
+  lrclib.resetCached(id.artist, id.title);
+  if (isPlaying(id)) loadLyrics(snap.track);
+  return { ok: true };
+});
 function applySettingsPatch(rawPatch) {
   const patch = cleanPatch(rawPatch);
   if (!Object.keys(patch).length) return settings;

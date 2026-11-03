@@ -90,15 +90,46 @@ async function fetchLyrics({ title, artist, album, dur }) {
   };
 }
 
+/** line is [start, text] or [start, text, wordStarts]; word times are kept only when they match the word count */
+function cleanWordTimes(x) {
+  const out = [x[0], x[1]];
+  const words = x[1].replace(/\s+/g, ' ').trim().split(' ');
+  const w = x[2];
+  if (Array.isArray(w) && w.length === words.length && w.length <= 200 && w.every(n => Number.isFinite(n) && n >= 0)) out.push(w.map(n => Math.round(n * 100) / 100));
+  return out;
+}
+
 /** Приводит найденный текст (из сети или из кэша) к безопасному виду: чужие или битые данные не должны ломать интерфейс. */
 function normalizeResult(r) {
   if (!r || typeof r !== 'object' || r.found !== true) return null;
   const lines = Array.isArray(r.lines)
-    ? r.lines.filter(x => Array.isArray(x) && Number.isFinite(x[0]) && typeof x[1] === 'string' && x[1].trim()).map(x => [x[0], x[1]]).slice(0, 5000)
+    ? r.lines.filter(x => Array.isArray(x) && Number.isFinite(x[0]) && typeof x[1] === 'string' && x[1].trim()).map(x => cleanWordTimes(x)).slice(0, 5000)
     : [];
   const plain = Array.isArray(r.plain) ? r.plain.filter(x => typeof x === 'string').slice(0, 3000) : [];
   if (!r.instrumental && !lines.length && !plain.length) return null;          // пустой «найденный» текст — это не текст
-  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: r.source === 'Genius' ? 'Genius' : 'LRCLIB' };
+  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: r.source === 'Genius' ? 'Genius' : 'LRCLIB', edited: !!r.edited };
+}
+
+function readCached(artist, title) {
+  try { return normalizeResult(JSON.parse(fs.readFileSync(cacheFile(artist, title), 'utf8')).result); } catch { return null; }
+}
+
+function saveEdited({ artist, title, lines, plain }) {
+  const text = s => String(s).replace(/\s+/g, ' ').trim().slice(0, 300);
+  const timed = (Array.isArray(lines) ? lines : [])
+    .filter(x => Array.isArray(x) && Number.isFinite(x[0]) && x[0] >= 0 && typeof x[1] === 'string' && text(x[1]))
+    .map(x => [Math.round(x[0] * 100) / 100, text(x[1]), x[2]])
+    .sort((a, b) => a[0] - b[0]);
+  const plainOut = (Array.isArray(plain) ? plain : []).filter(x => typeof x === 'string' && text(x)).map(text);
+  const prev = readCached(artist, title);
+  const result = normalizeResult({ found: true, synced: timed.length > 0, lines: timed, plain: plainOut, source: prev ? prev.source : 'LRCLIB', edited: true });
+  if (!result) return null;
+  fs.writeFileSync(cacheFile(artist, title), JSON.stringify({ title, artist, saved: Date.now(), result }));
+  return result;
+}
+
+function resetCached(artist, title) {
+  try { fs.unlinkSync(cacheFile(artist, title)); } catch { /* nothing cached */ }
 }
 
 async function getLyrics(raw) {
@@ -126,7 +157,7 @@ function library() {
         try {
           const j = JSON.parse(fs.readFileSync(path.join(cacheDir, f), 'utf8'));
           if (typeof j.title !== 'string' || !normalizeResult(j.result)) return null;       // посторонние и битые файлы не показываем
-          return { title: j.title.slice(0, 200), artist: typeof j.artist === 'string' ? j.artist.slice(0, 200) : '', saved: Number.isFinite(j.saved) ? j.saved : 0, synced: !!j.result.synced };
+          return { title: j.title.slice(0, 200), artist: typeof j.artist === 'string' ? j.artist.slice(0, 200) : '', saved: Number.isFinite(j.saved) ? j.saved : 0, synced: !!j.result.synced, edited: !!j.result.edited };
         } catch { return null; }
       })
       .filter(Boolean)
@@ -134,4 +165,4 @@ function library() {
   } catch { return []; }
 }
 
-module.exports = { init, getLyrics, library, parseLrc };
+module.exports = { init, getLyrics, library, parseLrc, readCached, saveEdited, resetCached };

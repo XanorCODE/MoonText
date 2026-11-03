@@ -7,17 +7,27 @@
     // защита от мусора: нечисловое время, пустой текст, лишние пробелы; порядок по времени
     const raw = (Array.isArray(rawIn) ? rawIn : [])
       .filter(r => Array.isArray(r) && Number.isFinite(+r[0]))
-      .map(r => [+r[0], String(r[1] ?? '').replace(/\s+/g, ' ').trim()])
+      .map(r => [+r[0], String(r[1] ?? '').replace(/\s+/g, ' ').trim(), Array.isArray(r[2]) ? r[2] : null])
       .filter(r => r[1])
       .sort((a, b) => a[0] - b[0]);
     dur = Number.isFinite(dur) && dur > 0 ? dur : 0;
-    return raw.map(([start, text], i) => {
+    return raw.map(([start, text, wt], i) => {
       const next = raw[i + 1] ? raw[i + 1][0] : (dur > start ? dur : start + 6);
+      const words = text.split(' ');
+      if (wt && wt.length === words.length && wt.every(x => Number.isFinite(+x))) {
+        let prev = start;
+        const st = wt.map(x => (prev = Math.max(prev, +x)));
+        const last = st[st.length - 1];
+        const lastEnd = Math.max(last + 0.25, Math.min(next - 0.05, last + 0.4 + words[words.length - 1].length * 0.08));
+        return {
+          start, end: lastEnd, text,
+          words: words.map((w, k) => ({ text: w, s: st[k], e: k < words.length - 1 ? Math.max(st[k + 1], st[k] + 0.05) : lastEnd })),
+        };
+      }
       let end = next - 0.25;
       // не растягиваем слова на длинные паузы между строками
       end = Math.min(end, start + Math.max(1.6, text.length * 0.11 + 0.9));
       end = Math.max(end, start + 0.4);
-      const words = text.split(' ');
       const weights = words.map(w => w.length + 2);
       const sum = weights.reduce((a, b) => a + b, 0);
       let cur = start;

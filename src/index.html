@@ -29,6 +29,54 @@
   <symbol id="i-win" viewBox="0 0 24 24"><path d="M3 5.5 11 4.4v7H3zM12 4.3 21 3v8.4h-9zM3 12.6h8v7l-8-1.1zM12 12.6h9V21l-9-1.3z" fill="currentColor"/></symbol>
 </svg>
 
+<div class="modal" id="edModal" aria-hidden="true">
+  <div class="modal-card ed-card glass" role="dialog" aria-label="Редактор текста">
+    <header class="ed-head">
+      <div class="ed-cover" id="edCover"></div>
+      <div class="ed-title"><h3 id="edTitle"></h3><small id="edSub"></small></div>
+      <span class="ed-chip" id="edChip"></span>
+      <button class="ico sm" id="edClose" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
+    </header>
+
+    <section class="ed-trans off" id="edTrans">
+      <div class="ed-tr-main">
+        <button class="ed-b" id="edBack" title="Назад на 5 секунд (J)">−5 с</button>
+        <button class="ed-play" id="edPlayPause" title="Пауза и воспроизведение (K)" aria-label="Пауза и воспроизведение"><svg><use href="#i-play"/></svg></button>
+        <button class="ed-b" id="edFwd" title="Вперёд на 5 секунд (L)">+5 с</button>
+        <div class="ed-seek" id="edSeek"><i id="edSeekFill"></i><b id="edSeekKnob"></b></div>
+        <span class="ed-time"><span id="edCur">0:00</span> / <span id="edDur">–:––</span></span>
+      </div>
+      <div class="ed-tr-act">
+        <button class="btn" id="edStart">▶ С начала</button>
+        <button class="btn" id="edPlay">С этой строки</button>
+        <button class="ed-tap" id="edTap"><span id="edTapLbl">Отметить строку</span><kbd>Пробел</kbd></button>
+      </div>
+    </section>
+
+    <section class="ed-tools">
+      <span class="ed-seg" id="edMode"><button class="on" data-mode="lines">Строки</button><button data-mode="words">Слова</button></span>
+      <span class="ed-group" id="edShift"><b>Сдвиг всех</b>
+        <button class="btn" data-shift="-0.5">−0.5</button><button class="btn" data-shift="-0.1">−0.1</button><button class="btn" data-shift="0.1">+0.1</button><button class="btn" data-shift="0.5">+0.5</button>
+      </span>
+      <button class="btn" id="edAuto" hidden>Авто по словам</button>
+      <button class="btn" id="edPaste">Вставить текст</button>
+      <button class="btn" id="edCopy">Копировать LRC</button>
+    </section>
+    <div class="ed-hint" id="edHint"></div>
+    <div class="ed-list" id="edList"></div>
+    <div class="ed-paste" id="edPasteBox" hidden>
+      <textarea id="edPasteText" placeholder="Вставьте текст песни: обычный или в формате LRC ([01:23.45] строка)" spellcheck="false"></textarea>
+      <div class="btn-row"><button class="btn primary" id="edPasteOk">Применить</button><button class="btn" id="edPasteNo">Отмена</button></div>
+    </div>
+    <footer class="ed-foot">
+      <span class="ed-state" id="edState"></span>
+      <button class="btn" id="edReset">Сбросить к исходному</button>
+      <button class="btn" id="edAdd">＋ Строка</button>
+      <button class="btn primary" id="edSave">Сохранить</button>
+    </footer>
+  </div>
+</div>
+
 <div class="modal" id="notesModal" aria-hidden="true">
   <div class="modal-card glass" role="dialog" aria-label="Что нового">
     <div class="modal-head">
@@ -147,7 +195,7 @@
       <header class="page-head" data-s style="--i:0">
         <h2>Библиотека</h2>
         <p>Найденные тексты сохраняются локально</p>
-        <label class="search glass"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input placeholder="Поиск по названию или исполнителю"></label>
+        <label class="search glass"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input id="libSearch" placeholder="Поиск по названию или исполнителю" autocomplete="off" spellcheck="false"></label>
       </header>
       <div class="lib-grid" id="libGrid"></div>
     </section>
@@ -334,5 +382,6 @@
 <script src="overlay-view.js"></script>
 <script src="changelog.js"></script>
 <script src="app.js"></script>
+<script src="editor.js"></script>
 </body>
 </html>

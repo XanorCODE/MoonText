@@ -96,6 +96,7 @@
 <div class="app">
 
   <header class="titlebar">
+    <button class="side-toggle" id="sideToggle" title="Свернуть меню" aria-label="Свернуть меню"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="3.5"/><path d="M9.5 5v14"/></svg></button>
     <div class="brand">
       <span class="logo"></span>
       <b>MoonText</b>
@@ -176,7 +177,12 @@
 
         <div class="lyrics-wrap" data-s style="--i:1">
           <i class="lyr-glow"></i>
-          <div class="lyr-tools glass">
+          <div class="lyr-tools glass" id="lyrTools">
+            <div class="shift" title="Сдвиг для этой песни: плюс — текст раньше, минус — позже">
+              <button id="shiftMinus" aria-label="Текст позже">−</button>
+              <button id="shiftVal" title="Сбросить сдвиг">0.0 с</button>
+              <button id="shiftPlus" aria-label="Текст раньше">+</button>
+            </div>
             <div class="seg" id="modeSeg">
               <i class="seg-ind"></i>
               <button class="active" data-mode="word">Слова</button>
@@ -338,6 +344,7 @@
           <div class="card-t big">Оформление</div>
           <div class="row"><div><div class="card-t">Тема программы</div><div class="card-d">Тёмная, светлая или как в настройках Windows</div></div>
             <div class="seg" id="themeSeg"><i class="seg-ind"></i><button class="active">Тёмная</button><button>Светлая</button><button>Как в системе</button></div></div>
+          <div class="row"><div><div class="card-t">Цвет от обложки</div><div class="card-d">Подсветка текста и полоса времени на вкладке «Сейчас играет» берут цвет из обложки</div></div><label class="sw"><input type="checkbox" id="setCoverAcc"><i></i></label></div>
         </div>
 
         <div class="card glass" data-s style="--i:1">
@@ -358,7 +365,7 @@
         <div class="card glass" data-s style="--i:3">
           <div class="card-t big">Тексты</div>
           <div class="row"><div><div class="card-t">LRCLIB</div><div class="card-d">lrclib.net · синхронизированные тексты</div></div><span class="chip on" id="lrcStatus"><i class="dot"></i>Подключено</span></div>
-          <div class="row"><div><div class="card-t">Сдвиг синхронизации</div><div class="card-d" id="offLabel">Если текст идёт раньше или позже</div></div><input type="range" class="range" id="setOffset" min="0" max="100" value="50"></div>
+          <div class="row"><div><div class="card-t">Общий сдвиг синхронизации</div><div class="card-d" id="offLabel">Для всех песен. Для одной песни есть кнопки над текстом</div></div><input type="range" class="range" id="setOffset" min="0" max="100" value="50"></div>
         </div>
 
         <div class="card glass" data-s style="--i:4">

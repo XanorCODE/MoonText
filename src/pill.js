@@ -11,7 +11,7 @@ const trackEl = document.getElementById('track');
 const moonEl = pill.querySelector('.moon');
 
 let settings = { offset: 0, pillSize: 1, adaptive: true, speed: 60, showPill: true, pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillAnim: 'run', pillWave: false, pillEco: false };
-let track = null, lines = [], lyricsState = 'none';       // none | loading | ok | notfound | plain
+let track = null, shift = 0, lines = [], lyricsState = 'none';       // none | loading | ok | notfound | plain
 const clock = new E.Clock();
 
 let mode = null;            // lyrics | title | notfound | idle | mini
@@ -48,7 +48,7 @@ function decide() {
   if (!track || !clock.playing) return 'idle';
   if (lyricsState === 'notfound') return 'notfound';
   if (lyricsState === 'ok' && lines.length) {
-    const t = clock.now() + settings.offset / 1000;
+    const t = clock.now() + (settings.offset + shift) / 1000;
     return t < lines[0].start - 0.3 ? 'title' : 'lyrics';
   }
   return 'title';                                          // идёт поиск или есть только обычный текст
@@ -155,7 +155,7 @@ function frame() {
   if (want !== mode) enter(want);
 
   if (mode === 'lyrics') {
-    const t = clock.now() + settings.offset / 1000;
+    const t = clock.now() + (settings.offset + shift) / 1000;
     const { li, wi, p } = E.locate(lines, t);
     if (li !== curLine) { curLine = li; buildTrack(li); }
     if (wi !== curWord && li === curLine && trackEl.children.length) {
@@ -184,18 +184,20 @@ function onMsg(m) {
     case 'settings': applySettings(m.settings); break;
     case 'track':
       track = m.track; clock.dur = m.track.dur;
-      if (!m.keepLyrics) { lines = []; lyricsState = 'loading'; curLine = -1; if (mode === 'title') { mode = null; } }
+      if (!m.keepLyrics) { shift = 0; lines = []; lyricsState = 'loading'; curLine = -1; if (mode === 'title') { mode = null; } }
       break;
     case 'state': clock.dur = m.state.dur; clock.update(m.state); break;
     case 'lyrics':
       if (!track || m.key !== track.key) break;
+      shift = m.status === 'ok' ? m.shift || 0 : 0;
       if (m.status === 'ok') {
         if (m.synced && m.lines?.length) { setLines(m.lines); lyricsState = 'ok'; }
         else { lines = []; lyricsState = m.plain?.length || m.instrumental ? 'plain' : 'notfound'; }
       } else if (m.status === 'loading') { lyricsState = 'loading'; }
       else lyricsState = 'notfound';
       break;
-    case 'none': track = null; lines = []; lyricsState = 'none'; break;
+    case 'shift': shift = m.shift || 0; break;
+    case 'none': track = null; shift = 0; lines = []; lyricsState = 'none'; break;
   }
 }
 

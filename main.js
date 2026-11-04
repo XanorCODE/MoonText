@@ -6,6 +6,7 @@ const lrclib = require('./main/lrclib');
 const { findCover, sniffMime } = require('./main/cover');
 const { StreamServer } = require('./main/stream');
 const { MediaWatcher } = require('./main/media');
+const { coverAccent } = require('./main/accent');
 
 const DEFAULTS = {
   appTheme: 'dark',   // dark | light | auto — тема окна программы
@@ -42,6 +43,7 @@ const DEFAULTS = {
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
   pillPos: 'left',   // left | center | right
   pillOffset: 0,     // px от края
+  coverAccent: false,   // цвет плашки и оверлея берётся из обложки
 };
 
 let settings = { ...DEFAULTS };
@@ -62,7 +64,7 @@ const RANGES = {
   offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
   streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100],
 };
-const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound'];
+const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound', 'coverAccent'];
 const COLORS = ['pillAccent', 'streamAccent'];
 
 function cleanPatch(src) {
@@ -101,9 +103,22 @@ process.on('unhandledRejection', e => console.error('unhandled:', e));
 // второй экземпляр просто показывает уже запущенный
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.on('second-instance', () => showMain());
+app.on('child-process-gone', (_, d) => {
+  if (d.type !== 'GPU') return;
+  logEvent('gpu process gone: ' + d.reason);
+  setTimeout(() => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.invalidate(); }, 600);
+});
 
 // последнее известное состояние — отдаём новым окнам
-const snap = { track: null, state: null, cover: null, lyrics: null, none: true };
+const snap = { track: null, state: null, cover: null, accent: null, lyrics: null, none: true };
+
+// цвет обложки нужен только вкладке «Сейчас играет»
+function setCoverAccent(cover) {
+  const next = settings.coverAccent && cover ? coverAccent(cover) : null;
+  if (next === snap.accent) return;
+  snap.accent = next;
+  broadcast({ type: 'accent', accent: next });
+}
 
 /* ---------- настройки ---------- */
 function loadSettings() {
@@ -138,7 +153,7 @@ function plog(msg) {
 }
 
 /* ---------- сервер оверлея для OBS ---------- */
-const stream = new StreamServer(path.join(__dirname, 'src'), () => ({ type: 'init', settings, ...snap }));
+const stream = new StreamServer(path.join(__dirname, 'src'), () => ({ type: 'init', ...snap, accent: null, settings }));
 stream.on('status', () => broadcast({ type: 'stream', status: stream.status }));
 async function syncStream() {
   if (settings.streamEnabled) await stream.start(settings.streamPort);
@@ -196,9 +211,19 @@ function createMain() {
     mainWin.hide();
   });
   mainWin.on('closed', () => { mainWin = null; });
-  const resync = () => { if (snap.state && mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('msg', { type: 'state', state: snap.state }); };
+  // after quick hide/minimize cycles Windows can leave the window black until it is repainted
+  const repaint = () => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.invalidate(); };
+  const resync = () => {
+    if (snap.state && mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('msg', { type: 'state', state: snap.state });
+    repaint(); setTimeout(repaint, 120); setTimeout(repaint, 500);
+  };
   mainWin.on('show', resync);
   mainWin.on('restore', resync);
+  mainWin.on('focus', repaint);
+  mainWin.webContents.on('render-process-gone', (_, d) => {
+    logEvent('window renderer gone: ' + d.reason);
+    if (mainWin && !mainWin.isDestroyed() && d.reason !== 'clean-exit') setTimeout(() => mainWin && !mainWin.isDestroyed() && mainWin.webContents.reload(), 300);
+  });
 }
 
 function showMain() {
@@ -384,6 +409,7 @@ function coverFallback(track) {
     if (art && snap.track?.key === track.key && !snap.cover) {
       snap.cover = art;
       broadcast({ type: 'cover', cover: art });
+      setCoverAccent(art);
     }
   }, 3500);
 }
@@ -404,7 +430,7 @@ media.on('message', m => {
   }
   if (m.type === 'none') {
     if (!snap.none) {
-      Object.assign(snap, { track: null, state: null, cover: null, lyrics: null, none: true });
+      Object.assign(snap, { track: null, state: null, cover: null, accent: null, lyrics: null, none: true });
       lyricsToken++;
       broadcast({ type: 'none' });
     }
@@ -416,6 +442,7 @@ media.on('message', m => {
     if (!snap.track || snap.track.key !== key) {
       snap.track = { key, title: m.title, artist: m.artist, album: m.album, app: m.app, dur: m.dur };
       snap.cover = null;
+      setCoverAccent(null);
       snap.lyrics = null;
       seekGuard = null;
       broadcast({ type: 'track', track: snap.track });
@@ -442,6 +469,7 @@ media.on('message', m => {
     if (snap.track && snap.track.title === m.title) {
       snap.cover = `data:${sniffMime(m.data)};base64,${m.data}`;
       broadcast({ type: 'cover', cover: snap.cover });
+      setCoverAccent(snap.cover);
     }
   }
 });
@@ -493,7 +521,7 @@ ipcMain.handle('update:install', () => {
 });
 
 /* ---------- IPC ---------- */
-ipcMain.handle('init', () => ({ settings, version: app.getVersion(), update: upd, stream: stream.status, sources: seenSources, ...snap }));
+ipcMain.handle('init', () => ({ ...snap, settings, version: app.getVersion(), update: upd, stream: stream.status, sources: seenSources }));
 ipcMain.handle('copy', (_, text) => { if (typeof text === 'string' && text.length < 500) clipboard.writeText(text); });
 ipcMain.handle('open-link', (_, key) => {
   // наружу открываем только заранее известные ссылки
@@ -556,6 +584,17 @@ ipcMain.handle('lyrics:save', (_, x) => {
   }
   return { ok: true };
 });
+ipcMain.handle('lyrics:shift', (_, x) => {
+  const id = idOf(x);
+  if (!id || !Number.isFinite(x.shift)) return { ok: false };
+  const shift = lrclib.setShift(id.artist, id.title, x.shift);
+  if (shift === null) return { ok: false };
+  if (isPlaying(id)) {
+    if (snap.lyrics) snap.lyrics.shift = shift;
+    broadcast({ type: 'shift', shift });
+  }
+  return { ok: true, shift };
+});
 ipcMain.handle('lyrics:reset', (_, x) => {
   const id = idOf(x);
   if (!id) return { ok: false };
@@ -577,6 +616,7 @@ function applySettingsPatch(rawPatch) {
   if ('autoDownloadUpdates' in patch && app.isPackaged) autoUpdater.autoDownload = !!settings.autoDownloadUpdates;
   if ('ignoredApps' in patch) media.setIgnored(settings.ignoredApps);
   if ('appTheme' in patch) applyChrome();
+  if ('coverAccent' in patch) { snap.accent = null; setCoverAccent(snap.cover); }
   if ('streamEnabled' in patch || 'streamPort' in patch) syncStream();
   broadcast({ type: 'settings', settings });
   return settings;

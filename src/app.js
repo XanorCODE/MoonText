@@ -13,7 +13,7 @@ let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoD
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
-let track = null;
+let track = null, shift = 0, covAccent = null;
 let lines = [];
 let dur = 0;
 const clock = new E.Clock();
@@ -82,7 +82,7 @@ function renderLyrics(raw, plain) {
         el.appendChild(s);
       });
       // клик по строке перематывает на её начало (с учётом сдвига синхронизации, чтобы подсветилась именно эта строка)
-      el.addEventListener('click', () => { endBrowse(); seekTo(Math.max(0, l.start - settings.offset / 1000) + 0.05); });
+      el.addEventListener('click', () => { endBrowse(); seekTo(Math.max(0, l.start - (settings.offset + shift) / 1000) + 0.05); });
       l.el = el;
       trackEl.appendChild(el);
     });
@@ -253,6 +253,7 @@ function onMsg(m) {
       if (!m.keepLyrics) bigView.clearCover();
       if (m.keepLyrics) { track = m.track; dur = m.track.dur || dur; $('#tDur').textContent = dur ? fmt(dur) : '–:––'; break; }
       setTrack(m.track);
+      setShift(0); $('#lyrTools').classList.remove('has-shift');
       renderLyrics([]);
       setChip('Ищу текст…', false);
       setEmpty('loading', 'Ищу текст…', 'LRCLIB');
@@ -266,6 +267,8 @@ function onMsg(m) {
     case 'sources': seenSources = m.apps || []; renderSources(); break;
     case 'stream': renderStream(m.status); break;
     case 'lyrics': onLyrics(m); break;
+    case 'shift': setShift(m.shift || 0); break;
+    case 'accent': covAccent = m.accent; applyCov(); break;
     case 'settings': applySettings(m.settings); break;
     case 'update': renderUpdate(m.update); break;
     case 'none': setIdle(); break;
@@ -284,6 +287,8 @@ function whyNoLyrics(r) {
 
 function onLyrics(m) {
   if (!track || m.key !== track.key) return;
+  setShift(m.status === 'ok' && m.synced ? m.shift || 0 : 0);
+  $('#lyrTools').classList.toggle('has-shift', m.status === 'ok' && !!m.synced && !!m.lines?.length);
   if (m.status === 'ok' && m.synced && m.lines?.length) bigView.setLyrics(m.lines, 'ok');
   else bigView.setLyrics(null, m.status === 'loading' ? 'loading' : 'notfound');
   if (m.status !== 'ok' || m.instrumental) renderLyrics([]);
@@ -374,7 +379,7 @@ function frame() {
 
   let t = clock.now();
   if (!hasMoon && t >= dur) { clock.seek(0); t = 0; lastLine = -1; }      // демо крутится по кругу
-  t += settings.offset / 1000;
+  t += (settings.offset + shift) / 1000;
 
   if (lines.length) {
     const { li, wi, p } = E.locate(lines, t);
@@ -483,10 +488,35 @@ $$('#swatches button.sw-dot').forEach(b => b.addEventListener('click', () => sav
 $('#setColor').addEventListener('input', e => save({ pillAccent: e.target.value }));
 
 /* ---------- настройки ---------- */
-const offLabel = ms => `Сдвиг: ${ms > 0 ? '+' : ''}${(ms / 1000).toFixed(1)} с — ${ms === 0 ? 'без сдвига' : ms > 0 ? 'текст позже' : 'текст раньше'}`;
+const offLabel = ms => `Для всех песен: ${ms > 0 ? '+' : ''}${(ms / 1000).toFixed(1)} с — ${ms === 0 ? 'без сдвига' : ms > 0 ? 'текст раньше' : 'текст позже'}. Для одной песни есть кнопки над текстом`;
+
+/* сдвиг для конкретной песни */
+let shiftTimer = 0;
+function setShift(ms) {
+  shift = ms; lastWord = -2;
+  $('#shiftVal').textContent = `${ms > 0 ? '+' : ''}${(ms / 1000).toFixed(1)} с`;
+  $('#shiftVal').classList.toggle('set', ms !== 0);
+}
+function nudgeShift(ms) {
+  if (!track) return;
+  const v = ms === null ? 0 : Math.max(-5000, Math.min(5000, shift + ms));
+  setShift(v);
+  clearTimeout(shiftTimer);
+  if (hasMoon) shiftTimer = setTimeout(() => window.moon.lyricsShift({ artist: track.artist, title: track.title, shift: v }), 300);
+}
+$('#shiftMinus').addEventListener('click', () => nudgeShift(-100));
+$('#shiftPlus').addEventListener('click', () => nudgeShift(100));
+$('#shiftVal').addEventListener('click', () => nudgeShift(null));
+
+function applyCov() {
+  const el = $('#p-now'), on = !!(covAccent && settings.coverAccent);
+  el.classList.toggle('tinted', on);
+  if (on) el.style.setProperty('--cov', covAccent); else el.style.removeProperty('--cov');
+}
 
 function applySettings(s, local) {
   settings = { ...settings, ...s };
+  applyCov();
   applyTheme();
   setThemeSeg(Math.max(0, THEMES.indexOf(settings.appTheme)));
   lyricsEl.classList.toggle('mode-word', settings.wordAnim);
@@ -519,6 +549,7 @@ function applySettings(s, local) {
     $('#setWave').checked = settings.pillWave;
     $('#setFs').checked = settings.hideFullscreen;
     $('#setAutoUpd').checked = settings.autoDownloadUpdates !== false;
+    $('#setCoverAcc').checked = !!settings.coverAccent;
     $('#setEdge').value = settings.pillOffset;
     $('#setAutostart').checked = settings.autostart;
     $('#setPill').checked = settings.showPill;
@@ -555,6 +586,7 @@ $('#setPa').addEventListener('input', e => save({ pillOpacity: +e.target.value }
 $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value }));
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
 $('#setAutoUpd').addEventListener('change', e => save({ autoDownloadUpdates: e.target.checked }));
+$('#setCoverAcc').addEventListener('change', e => save({ coverAccent: e.target.checked }));
 
 /* ---------- источники музыки: что слушать, а что игнорировать ---------- */
 let seenSources = [];
@@ -607,7 +639,17 @@ function go(page) {
   if (page === 'lib') loadLibrary();
   if (page === 'now' && lastLine >= 0) setTimeout(() => scrollTo(lastLine), 50);
 }
-navBtns.forEach(b => b.addEventListener('click', () => go(b.dataset.page)));
+navBtns.forEach(b => { b.title = b.textContent.trim(); b.addEventListener('click', () => go(b.dataset.page)); });
+
+function setSide(collapsed) {
+  $('.app').classList.toggle('collapsed', collapsed);
+  const t = collapsed ? 'Развернуть меню' : 'Свернуть меню';
+  $('#sideToggle').title = t; $('#sideToggle').setAttribute('aria-label', t);
+  try { localStorage.setItem('sideCollapsed', collapsed ? '1' : '0'); } catch {}
+  if (curPage === 'stream') setTimeout(fitStages, 560);
+}
+$('#sideToggle').addEventListener('click', () => setSide(!$('.app').classList.contains('collapsed')));
+try { if (localStorage.getItem('sideCollapsed') === '1') $('.app').classList.add('collapsed'), setSide(true); } catch {}
 
 /* ---------- библиотека ---------- */
 const DEMO_LIB = [
@@ -844,7 +886,7 @@ addEventListener('focus', syncFocusClass); addEventListener('blur', syncFocusCla
   if (!hasMoon) {                       // демо в обычном браузере
     applySettings(settings);
     setTrack(DEMO.track);
-    renderLyrics(DEMO.lyrics);
+    renderLyrics(DEMO.lyrics); $('#lyrTools').classList.add('has-shift');
     setChip('Демо · синхронизировано');
     setEmpty(null);
     clock.update({ status: 'Playing', pos: 0, updated: 0 });
@@ -865,6 +907,7 @@ addEventListener('focus', syncFocusClass); addEventListener('blur', syncFocusCla
   if (init.none || !init.track) { setIdle(); return; }
   onMsg({ type: 'track', track: init.track });
   if (init.cover) setCover(init.cover);
+  covAccent = init.accent || null; applyCov();
   if (init.state) onMsg({ type: 'state', state: init.state });
   if (init.lyrics) onLyrics(init.lyrics);
 })();

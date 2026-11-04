@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('moon', {
   lyricsGet: x => ipcRenderer.invoke('lyrics:get', x),
   lyricsSave: x => ipcRenderer.invoke('lyrics:save', x),
   lyricsReset: x => ipcRenderer.invoke('lyrics:reset', x),
+  lyricsShift: x => ipcRenderer.invoke('lyrics:shift', x),
   pillReady: () => ipcRenderer.send('pill:ready'),
   openLink: key => ipcRenderer.invoke('open-link', key),
   copy: text => ipcRenderer.invoke('copy', text),

@@ -84,6 +84,20 @@ svg { width: 22px; height: 22px; flex: none; }
 .live { box-shadow: 0 0 0 4px rgba(255,255,255,.16), 0 0 12px rgba(255,255,255,.35); }      /* мягкое свечение без бесконечной анимации */
 .lrclib { text-align: center; font-size: 11.5px; color: var(--faint); letter-spacing: .02em; }
 
+/* свёрнутое меню */
+.app { transition: grid-template-columns .5s var(--smooth); }
+.side-toggle { -webkit-app-region: no-drag; flex: none; width: 30px; height: 30px; margin-left: -4px; border-radius: 10px; display: grid; place-items: center; color: var(--dim); transition: color .3s, background .3s; }
+.side-toggle:hover { color: #fff; background: rgba(255,255,255,.1); }
+.side-toggle svg { width: 18px; height: 18px; }
+.app.collapsed { grid-template-columns: 78px 1fr; }
+.app.collapsed .side { padding: 14px 14px; }
+.app.collapsed .nav-btn { justify-content: center; padding: 0; }
+.app.collapsed .nav-btn span, .app.collapsed .recent > *, .app.collapsed .lrclib, .app.collapsed .source > div, .app.collapsed .live,
+.app.collapsed .upd-txt, .app.collapsed .upd-prog { display: none; }
+.app.collapsed .source { justify-content: center; padding: 8px 0; }
+.app.collapsed .upd-side { justify-content: center; padding: 8px 0; }
+html[data-theme="light"] .side-toggle:hover { color: #12141c; background: rgba(18,20,28,.07); }
+
 /* ---------- страницы ---------- */
 .stage { position: relative; min-width: 0; min-height: 0; }
 .page { position: absolute; inset: 0 -26px -26px -14px; opacity: 0; visibility: hidden; transform: translateY(26px) scale(.985); filter: blur(14px); transition: opacity .55s var(--smooth), transform .8s var(--smooth), filter .55s var(--smooth), visibility 0s .55s; overflow-x: hidden; overflow-y: auto; padding: 4px 30px 30px 18px; }      /* поля с запасом: мягкие тени карточек не обрезаются по краю */
@@ -112,7 +126,7 @@ svg { width: 22px; height: 22px; flex: none; }
 
 .seek .bar { position: relative; height: 6px; border-radius: 6px; background: rgba(255,255,255,.14); cursor: pointer; transition: height .3s var(--spring); }
 .seek .bar:hover { height: 10px; }
-.seek .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, rgba(255,255,255,.7), #fff); box-shadow: 0 0 14px rgba(255,255,255,.5); }
+.seek .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--cov, #fff) 70%, transparent), var(--cov, #fff)); box-shadow: 0 0 14px color-mix(in srgb, var(--cov, #fff) 50%, transparent); }
 .seek .bar u { position: absolute; top: 50%; left: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.6); transform: scale(0); transition: transform .35s var(--spring); }
 .seek .bar:hover u { transform: scale(1); }
 .times { display: flex; justify-content: space-between; margin-top: 9px; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -138,6 +152,15 @@ svg { width: 22px; height: 22px; flex: none; }
 /* ---------- текст ---------- */
 .lyrics-wrap { position: relative; min-height: 0; }
 .lyr-tools { position: absolute; top: 0; right: 4px; z-index: 5; padding: 5px; border-radius: 999px; }
+.lyr-tools { display: flex; align-items: center; gap: 6px; }
+.shift { display: none; align-items: center; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.06); box-shadow: inset 0 1px 3px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06); }
+.lyr-tools.has-shift .shift { display: inline-flex; }
+.shift button { height: 32px; min-width: 32px; padding: 0 8px; border-radius: 999px; font-size: 14px; font-weight: 560; color: var(--dim); transition: color .3s, background .3s; }
+.shift button:hover { color: #fff; background: rgba(255,255,255,.1); }
+.shift #shiftVal { min-width: 58px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.shift #shiftVal.set { color: #fff; }
+html[data-theme="light"] .shift { background: rgba(18,20,28,.06); box-shadow: inset 0 1px 3px rgba(40,55,100,.15), inset 0 0 0 1px rgba(18,20,28,.05); }
+html[data-theme="light"] .shift button:hover, html[data-theme="light"] .shift #shiftVal.set { color: #12141c; }
 .lyrics { position: absolute; inset: 0; overflow: hidden; -webkit-mask-image: linear-gradient(transparent 0, #000 16%, #000 80%, transparent 100%); mask-image: linear-gradient(transparent 0, #000 16%, #000 80%, transparent 100%); }
 .lyrics-track { position: absolute; left: 0; right: 0; top: 0; padding: 0 56px 0 30px; transition: transform 1s var(--smooth); will-change: transform; }
 
@@ -157,14 +180,14 @@ svg { width: 22px; height: 22px; flex: none; }
 /* Одно слово = один слой: градиент, обрезанный по буквам. Второго слоя поверх нет, поэтому нет и каймы по контуру букв. */
 .mode-word .line.active .w {
   color: transparent;
-  background-image: linear-gradient(90deg, #fff calc(var(--p) * (100% + 20px) - 20px), rgba(255,255,255,.3) calc(var(--p) * (100% + 20px)));
+  background-image: linear-gradient(90deg, var(--cov, #fff) calc(var(--p) * (100% + 20px) - 20px), rgba(255,255,255,.3) calc(var(--p) * (100% + 20px)));
   background-repeat: no-repeat;
   -webkit-background-clip: text; background-clip: text;
   padding: .06em .05em .14em; margin: -.06em calc(.22em - .05em) -.14em -.05em;     /* запас под выносные элементы букв */
   transition: --p .35s linear, transform .45s var(--smooth), filter .45s var(--smooth);
 }
 .mode-word .line.active .w.done { --p: 1; }
-.mode-word .line.active .w.cur { transform: translateY(-2px); filter: drop-shadow(0 0 14px rgba(255,255,255,.45)); transition: transform .45s var(--smooth), filter .45s var(--smooth); }
+.mode-word .line.active .w.cur { transform: translateY(-2px); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--cov, #fff) 45%, transparent)); transition: transform .45s var(--smooth), filter .45s var(--smooth); }
 
 /* ---------- сегменты ---------- */
 .seg { position: relative; display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.06); box-shadow: inset 0 1px 3px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06); }
@@ -595,6 +618,7 @@ html[data-theme="light"] .chip:hover, html[data-theme="light"] .chip.warn { colo
 html[data-theme="light"] .chip.on { color: #12141c; background: rgba(18,20,28,.1); }
 
 /* текст песни */
+#p-now.tinted .lyr-glow { background: radial-gradient(closest-side, color-mix(in srgb, var(--cov) 26%, transparent), transparent); }
 html[data-theme="light"] .lyr-glow { background: radial-gradient(closest-side, rgba(110,130,255,.2), transparent); }
 html[data-theme="light"] .line .w { color: #12141c; }
 html[data-theme="light"] .mode-word .line.active .w {

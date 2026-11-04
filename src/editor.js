@@ -5,6 +5,7 @@ const REACTION = 0.2;
 
 const lc = s => String(s || '').toLowerCase();
 const edIsPlaying = () => !!(track && ed.item && lc(track.artist) === lc(ed.item.artist) && lc(track.title) === lc(ed.item.title));
+const edOff = () => settings.offset + (edIsPlaying() ? shift : 0);
 const r2 = t => Math.round(t * 100) / 100;
 const edFmt = t => t == null ? '' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`;
 const edWords = text => String(text).trim().split(/\s+/).filter(Boolean);
@@ -27,7 +28,7 @@ function edRestore(from, to) {
 }
 const edUndoStep = () => edRestore(hist.undo, hist.redo);
 const edRedoStep = () => edRestore(hist.redo, hist.undo);
-const edNow = () => r2(Math.max(0, clock.now() + settings.offset / 1000 - REACTION));
+const edNow = () => r2(Math.max(0, clock.now() + edOff() / 1000 - REACTION));
 function edParseTime(s) {
   const m = String(s).trim().match(/^(?:(\d+):)?(\d+(?:[.,]\d+)?)$/);
   return m ? (m[1] ? +m[1] * 60 : 0) + parseFloat(m[2].replace(',', '.')) : null;
@@ -262,7 +263,7 @@ function edFollow() {
     if (ed.shown >= 0) { rowsEl[ed.shown]?.classList.remove('sung'); ed.shown = -1; }
     return;
   }
-  const t = clock.now() + settings.offset / 1000;
+  const t = clock.now() + edOff() / 1000;
   let idx = -1;
   for (let i = 0; i < ed.rows.length; i++) {
     const r = ed.rows[i];
@@ -435,7 +436,7 @@ $('#edMode').addEventListener('click', e => {
 });
 $('#edPlay').addEventListener('click', () => {
   const r = ed.rows[ed.cur];
-  if (r && r.t != null && edIsPlaying()) seekTo(Math.max(0, r.t - settings.offset / 1000 - 1));
+  if (r && r.t != null && edIsPlaying()) seekTo(Math.max(0, r.t - edOff() / 1000 - 1));
 });
 $('#edShift').addEventListener('click', e => {
   const s = parseFloat(e.target.closest('button')?.dataset.shift);

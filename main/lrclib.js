@@ -125,7 +125,11 @@ function normalizeResult(r) {
     : [];
   const plain = Array.isArray(r.plain) ? r.plain.filter(x => typeof x === 'string').slice(0, 3000) : [];
   if (!r.instrumental && !lines.length && !plain.length) return null;          // пустой «найденный» текст — это не текст
-  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: r.source === 'Genius' ? 'Genius' : 'LRCLIB', edited: !!r.edited };
+  return { found: true, instrumental: !!r.instrumental, synced: !!r.synced && lines.length > 0, lines, plain, source: r.source === 'Genius' ? 'Genius' : 'LRCLIB', edited: !!r.edited, shift: cleanShift(r.shift) };
+}
+
+function cleanShift(n) {
+  return Number.isFinite(n) ? Math.max(-5000, Math.min(5000, Math.round(n))) : 0;
 }
 
 function readCached(artist, title) {
@@ -140,10 +144,21 @@ function saveEdited({ artist, title, lines, plain }) {
     .sort((a, b) => a[0] - b[0]);
   const plainOut = (Array.isArray(plain) ? plain : []).filter(x => typeof x === 'string' && text(x)).map(text);
   const prev = readCached(artist, title);
-  const result = normalizeResult({ found: true, synced: timed.length > 0, lines: timed, plain: plainOut, source: prev ? prev.source : 'LRCLIB', edited: true });
+  const result = normalizeResult({ found: true, synced: timed.length > 0, lines: timed, plain: plainOut, source: prev ? prev.source : 'LRCLIB', edited: true, shift: prev ? prev.shift : 0 });
   if (!result) return null;
   fs.writeFileSync(cacheFile(artist, title), JSON.stringify({ title, artist, saved: Date.now(), result }));
   return result;
+}
+
+function setShift(artist, title, shift) {
+  const file = cacheFile(artist, title);
+  try {
+    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!normalizeResult(j.result)) return null;
+    j.result.shift = cleanShift(shift);
+    fs.writeFileSync(file, JSON.stringify(j));
+    return j.result.shift;
+  } catch { return null; }
 }
 
 function resetCached(artist, title) {
@@ -183,4 +198,4 @@ function library() {
   } catch { return []; }
 }
 
-module.exports = { init, getLyrics, library, parseLrc, readCached, saveEdited, resetCached };
+module.exports = { init, getLyrics, library, parseLrc, readCached, saveEdited, setShift, resetCached };

@@ -1,6 +1,6 @@
 /* lyrics editor: view, edit and sync lines and words of a saved lyrics */
 const edModal = $('#edModal'), edList = $('#edList');
-const ed = { item: null, rows: [], cur: 0, k: 0, mode: 'lines', dirty: false, edited: false, tick: 0, wasPlaying: false, sung: -1, lastSung: -1, touched: 0 };
+const ed = { item: null, rows: [], cur: 0, k: 0, mode: 'lines', dirty: false, edited: false, tick: 0, wasPlaying: false, shown: -1, touched: 0 };
 const REACTION = 0.2;
 
 const lc = s => String(s || '').toLowerCase();
@@ -82,6 +82,7 @@ function edFillRow(row, r) {
 
 function edRender() {
   edList.textContent = '';
+  ed.shown = -1;
   const frag = document.createDocumentFragment();
   ed.rows.forEach((r, i) => {
     const row = document.createElement('div');
@@ -130,11 +131,13 @@ function edStatus() {
   $('#edUndo').disabled = !hist.undo.length;
   $('#edRedo').disabled = !hist.redo.length;
   $$('#edMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === ed.mode));
-  $('#edHint').textContent = !playing
+  const hint = $('#edHint');
+  hint.textContent = !playing
     ? 'Эта песня сейчас не играет. Запустите её в плеере (Spotify, браузер и другие), и здесь заработают управление и отметки. Время и текст можно править и вручную.'
     : words
       ? 'Нажмите «С начала» и отмечайте каждое слово клавишей Пробел. Backspace отменяет последнюю отметку, ←→ двигают время слова (Shift — крупнее), ↑↓ выбирают строку. «Авто по словам» заполнит всё равномерно, потом поправьте неточные слова.'
       : 'Нажмите «С начала» и отмечайте каждую строку клавишей Пробел в момент, когда она начинает звучать. ↑↓ выбирают строку, ←→ двигают её время на 0.1 с (Shift — на 0.5). K — пауза, J и L — на 5 секунд назад и вперёд.';
+  hint.title = hint.textContent;
 }
 
 function edTransport() {
@@ -254,22 +257,34 @@ function edFollow() {
   const playing = edIsPlaying();
   if (playing !== ed.wasPlaying) { ed.wasPlaying = playing; edStatus(); }
   edTransport();
-  const rowsEl = $$('.ed-row', edList);
-  if (!playing) { rowsEl.forEach(n => n.classList.remove('sung')); return; }
+  const rowsEl = edList.children;
+  if (!playing) {
+    if (ed.shown >= 0) { rowsEl[ed.shown]?.classList.remove('sung'); ed.shown = -1; }
+    return;
+  }
   const t = clock.now() + settings.offset / 1000;
   let idx = -1;
-  ed.rows.forEach((r, i) => { if (r.t != null && r.t <= t && (idx < 0 || r.t >= ed.rows[idx].t)) idx = i; });
-  rowsEl.forEach((n, i) => n.classList.toggle('sung', i === idx));
-  if (idx !== ed.lastSung && idx >= 0 && clock.playing && Date.now() - ed.touched > 3000) rowsEl[idx].scrollIntoView({ block: 'center', behavior: 'smooth' });
-  ed.lastSung = idx;
-  if (ed.mode !== 'words') return;
-  const mark = (i, on) => {
-    const r = ed.rows[i], w = r && edRowW(r);
-    $$('.ed-w', rowsEl[i] || document.body).forEach((b, k) => b.classList.toggle('done', on && !!w && w[k] != null && w[k] <= t));
-  };
-  if (ed.sung !== idx && ed.sung >= 0) mark(ed.sung, false);
-  ed.sung = idx;
-  if (idx >= 0) mark(idx, true);
+  for (let i = 0; i < ed.rows.length; i++) {
+    const r = ed.rows[i];
+    if (r.t != null && r.t <= t && (idx < 0 || r.t >= ed.rows[idx].t)) idx = i;
+  }
+  if (idx !== ed.shown) {
+    const prev = ed.shown;
+    rowsEl[prev]?.classList.remove('sung');
+    rowsEl[idx]?.classList.add('sung');
+    if (ed.mode === 'words' && prev >= 0) edMarkDone(prev, t, false);
+    ed.shown = idx;
+    if (idx >= 0 && clock.playing && Date.now() - ed.touched > 3000) rowsEl[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  if (ed.mode === 'words' && idx >= 0) edMarkDone(idx, t, true);
+}
+
+function edMarkDone(i, t, on) {
+  const row = edList.children[i];
+  if (!row) return;
+  const w = edRowW(ed.rows[i]);
+  const chips = row.querySelectorAll('.ed-w');
+  for (let k = 0; k < chips.length; k++) chips[k].classList.toggle('done', on && !!w && w[k] != null && w[k] <= t);
 }
 
 function edCloseNow() {
@@ -287,7 +302,7 @@ function edClose() {
 async function openEditor(item) {
   if (!item || typeof item.title !== 'string') return;
   ed.item = { title: item.title, artist: item.artist || '' };
-  ed.cur = 0; ed.k = 0; ed.dirty = false; ed.mode = 'lines'; ed.sung = -1; ed.lastSung = -1; ed.touched = 0;
+  ed.cur = 0; ed.k = 0; ed.dirty = false; ed.mode = 'lines'; ed.shown = -1; ed.touched = 0;
   hist.undo = []; hist.redo = []; hist.key = '';
   let res = null;
   if (hasMoon) res = await window.moon.lyricsGet(ed.item);
@@ -415,7 +430,7 @@ $('#edAuto').addEventListener('click', edAuto);
 $('#edMode').addEventListener('click', e => {
   const m = e.target.closest('button')?.dataset.mode;
   if (!m || m === ed.mode) return;
-  ed.mode = m; ed.k = 0; ed.sung = -1;
+  ed.mode = m; ed.k = 0;
   edRender();
 });
 $('#edPlay').addEventListener('click', () => {

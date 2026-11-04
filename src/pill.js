@@ -116,7 +116,7 @@ function enter(next) {
 function buildTrack(li) {
   const idx = li;
   swapTo(() => {
-    if (idx !== curLine || mode !== 'lyrics') return;
+    if (idx !== curLine || mode !== 'lyrics' || !lines[idx]) return;
     trackEl.innerHTML = '';
     let letter = 0;                                   // сквозной номер буквы в строке — сдвиг фазы волны
     lines[idx].words.forEach(w => {

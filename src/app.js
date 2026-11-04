@@ -130,7 +130,7 @@ lyricsEl.addEventListener('wheel', e => {
 /* ---------- трек ---------- */
 const SOURCES = [
   [/spotify/i, 'Spotify'], [/yandex|яндекс/i, 'Яндекс Музыка'], [/applemusic|itunes/i, 'Apple Music'],
-  [/chrome|msedge|firefox|opera|brave|vivaldi|arc/i, 'Браузер'], [/vk/i, 'VK Музыка'],
+  [/vk/i, 'VK Музыка'],
   [/zunemusic|media ?player|music\.ui/i, 'Медиаплеер'], [/tidal/i, 'TIDAL'], [/deezer/i, 'Deezer'],
 ];
 /** Системный идентификатор приложения → короткое читаемое имя: «com.squirrel.Telegram.Telegram» → «Telegram», «MyMusicPlayer_8wekyb3d8bbwe!App» → «My Music Player». */
@@ -142,7 +142,13 @@ function friendlyApp(id) {
   n = n[0].toUpperCase() + n.slice(1);
   return n.length > 28 ? n.slice(0, 27).trimEnd() + '…' : n;
 }
-const srcName = id => (SOURCES.find(([re]) => re.test(id || '')) || [0, friendlyApp(id)])[1];
+const BROWSERS = [[/msedge|edge/i, 'Edge'], [/chrome/i, 'Chrome'], [/firefox/i, 'Firefox'], [/opera/i, 'Opera'], [/brave/i, 'Brave'], [/vivaldi/i, 'Vivaldi'], [/(^|[^a-z])arc([^a-z]|$)/i, 'Arc']];
+const srcName = id => {
+  const hit = SOURCES.find(([re]) => re.test(id || ''));
+  if (hit) return hit[1];
+  const br = BROWSERS.find(([re]) => re.test(id || ''));
+  return br ? `${br[1]} (браузер)` : friendlyApp(id);
+};
 
 function setTrack(t) {
   track = t;
@@ -280,6 +286,7 @@ function onLyrics(m) {
   if (!track || m.key !== track.key) return;
   if (m.status === 'ok' && m.synced && m.lines?.length) bigView.setLyrics(m.lines, 'ok');
   else bigView.setLyrics(null, m.status === 'loading' ? 'loading' : 'notfound');
+  if (m.status !== 'ok' || m.instrumental) renderLyrics([]);
   if (m.status === 'loading') { setChip('Ищу текст…', false); setEmpty('loading', 'Ищу текст…', 'LRCLIB'); return; }
   if (m.status === 'error') {
     const limit = m.report?.lrclib === 'limit', server = m.report?.lrclib === 'server';
@@ -565,7 +572,8 @@ function renderSources() {
     row.className = 'row';
     const txt = document.createElement('div');
     const t = document.createElement('div'); t.className = 'card-t'; t.textContent = srcName(id);
-    const d = document.createElement('div'); d.className = 'card-d'; d.textContent = (live ? 'Сейчас открыт' : 'Не запущен') + (off ? ' · не слушаем' : '');
+    const d = document.createElement('div'); d.className = 'card-d'; d.textContent = (live ? 'Сейчас открыт' : 'Не запущен') + (off ? ' · не слушаем' : '') + ' · ' + (id.length > 32 ? id.slice(0, 31) + '…' : id);
+    d.title = id;
     txt.append(t, d);
     const sw = document.createElement('label'); sw.className = 'sw';
     const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !off;

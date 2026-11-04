@@ -28,6 +28,7 @@ Add-Type -Namespace MT -Name Shell -MemberDefinition '[DllImport("shell32.dll")]
 $lastFs = $null
 
 $script:ignored = @()
+$noneSent = $false
 $script:lastSources = $null
 
 function IsIgnored($sess) { return ($script:ignored -contains [string]$sess.SourceAppUserModelId) }
@@ -54,6 +55,7 @@ $reader = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), $utf
 $readTask = $reader.ReadLineAsync()
 
 while ($true) {
+  $idle = $true
   try {
     $s = PickSession
 
@@ -92,12 +94,14 @@ while ($true) {
     }
 
     if (-not $s) {
-      Emit @{ type = 'none' }
+      if (-not $noneSent) { Emit @{ type = 'none' }; $noneSent = $true }
       $lastKey = ''
     } else {
+      $noneSent = $false
       $p = Await ($s.TryGetMediaPropertiesAsync()) $propsType
       $tl = $s.GetTimelineProperties()
       $pb = $s.GetPlaybackInfo()
+      $idle = ($pb.PlaybackStatus.ToString() -ne 'Playing')
       $dur = ($tl.EndTime - $tl.StartTime).TotalSeconds
       Emit @{
         type = 'state'
@@ -134,5 +138,6 @@ while ($true) {
   } catch {
     Emit @{ type = 'error'; message = $_.Exception.Message }
   }
-  Start-Sleep -Milliseconds 400
+  $ms = if ($idle) { 800 } else { 400 }
+  try { $null = $readTask.Wait($ms) } catch { Start-Sleep -Milliseconds $ms }
 }

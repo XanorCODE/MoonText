@@ -618,6 +618,8 @@ html[data-theme="light"] .chip:hover, html[data-theme="light"] .chip.warn { colo
 html[data-theme="light"] .chip.on { color: #12141c; background: rgba(18,20,28,.1); }
 
 /* текст песни */
+/* with the cover color on, a finished line keeps it while it leaves upward instead of turning white again */
+html:not([data-theme="light"]) #p-now.tinted .line.past .w { color: var(--cov); }
 #p-now.tinted .lyr-glow { background: radial-gradient(closest-side, color-mix(in srgb, var(--cov) 26%, transparent), transparent); }
 html[data-theme="light"] .lyr-glow { background: radial-gradient(closest-side, rgba(110,130,255,.2), transparent); }
 html[data-theme="light"] .line .w { color: #12141c; }
@@ -704,5 +706,86 @@ html[data-theme="light"] .upd-prog u { background: #12141c; box-shadow: none; }
 .pill[data-wave="1"][data-mode="lyrics"] .pill-track i { display: inline-block; font-style: normal; animation: pillWave 1.9s ease-in-out infinite; animation-delay: calc(var(--l, 0) * -.085s); }
 
 /* окно в фоне (не в фокусе): декоративное движение замирает — видеокарта не работает впустую */
+html.bg-paused .bg::before, html.bg-paused .bg::after { animation-play-state: paused !important; }
 html.bg-paused :is(.orb, .cover, .moon-g, .stars, .lyr-glow, .le-moon, .eq i, .dot, .pill-moon, .upd-ico svg) { animation-play-state: paused !important; }
 html.bg-paused .ico.main::after { animation-play-state: paused !important; }
+
+/* ---------- вид фона: html[data-bg] = flow | soft | stars | off ---------- */
+html[data-bg="flow"] .orb { opacity: 1; }
+html[data-bg="flow"] .o1 { animation: flow1 17s ease-in-out infinite alternate; }
+html[data-bg="flow"] .o2 { animation: flow2 21s ease-in-out infinite alternate; }
+html[data-bg="flow"] .o3 { animation: flow3 25s ease-in-out infinite alternate; }
+@keyframes flow1 { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(340px, 120px) scale(1.25); } 100% { transform: translate(120px, 300px) scale(.95); } }
+@keyframes flow2 { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-360px, -80px) scale(1.2); } 100% { transform: translate(-140px, -280px) scale(.9); } }
+@keyframes flow3 { 0% { transform: translate(0, 0) scale(.9); } 50% { transform: translate(-200px, 220px) scale(1.2); } 100% { transform: translate(240px, -120px) scale(1); } }
+html[data-bg="flow"] .bg::before { content: ""; position: absolute; inset: -45%; pointer-events: none; will-change: transform;
+  background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, rgba(120,150,255,.13) 60deg, transparent 130deg, rgba(190,140,255,.1) 215deg, transparent 290deg, rgba(110,200,255,.09) 330deg, transparent 360deg);
+  animation: bgSpin 70s linear infinite; }
+@keyframes bgSpin { to { transform: rotate(360deg); } }
+
+html[data-bg="stars"] .orb { opacity: .35; animation: none; }
+html[data-bg="stars"] .bg::before, html[data-bg="stars"] .bg::after { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: -320px; pointer-events: none; will-change: transform; }
+html[data-bg="stars"] .bg::before { background-size: 320px 320px; animation: starDrift 110s linear infinite;
+  background-image: radial-gradient(1.2px 1.2px at 30px 40px, rgba(255,255,255,.9), transparent), radial-gradient(1px 1px at 120px 90px, rgba(255,255,255,.7), transparent), radial-gradient(1.6px 1.6px at 210px 160px, #fff, transparent), radial-gradient(1px 1px at 270px 20px, rgba(255,255,255,.6), transparent), radial-gradient(1.3px 1.3px at 70px 240px, rgba(255,255,255,.8), transparent), radial-gradient(1px 1px at 190px 290px, rgba(255,255,255,.6), transparent); }
+html[data-bg="stars"] .bg::after { background-size: 460px 460px; opacity: .8; animation: starDrift2 170s linear infinite, starTwinkle 5s ease-in-out infinite alternate;
+  background-image: radial-gradient(1px 1px at 60px 80px, rgba(190,205,255,.9), transparent), radial-gradient(1.4px 1.4px at 250px 130px, rgba(255,255,255,.85), transparent), radial-gradient(1px 1px at 380px 300px, rgba(255,230,200,.8), transparent), radial-gradient(1.2px 1.2px at 140px 380px, rgba(255,255,255,.75), transparent); }
+@keyframes starDrift { to { transform: translateY(-320px); } }
+@keyframes starDrift2 { to { transform: translateY(-460px); } }
+@keyframes starTwinkle { from { opacity: .35; } to { opacity: 1; } }
+
+html[data-bg="off"] .orb { animation: none; }
+html[data-theme="light"][data-bg="stars"] .bg::before, html[data-theme="light"][data-bg="stars"] .bg::after { filter: invert(1) brightness(.5); opacity: .55; }
+html[data-theme="light"][data-bg="flow"] .bg::before { opacity: .8; }
+
+/* ---------- «остров» сверху на вкладке «Сейчас играет» ---------- */
+.island {
+  position: absolute; left: 50%; top: 6px; z-index: 40; width: 232px; height: 34px; border-radius: 17px; overflow: hidden;
+  transform: translateX(-50%); -webkit-app-region: no-drag;
+  background: #000; color: #fff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 10px 30px rgba(0,0,0,.55);
+  transition: width .55s var(--spring), height .55s var(--spring), border-radius .55s var(--spring), opacity .35s var(--smooth), transform .55s var(--spring);
+}
+.island * { -webkit-app-region: no-drag; }
+body:not([data-page="now"]) .island { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(-10px) scale(.85); }
+html[data-island="0"] .island { display: none; }
+.island.open { width: 372px; height: 128px; border-radius: 28px; }
+.island.idle, .island.idle:hover { width: 188px; height: 34px; border-radius: 17px; }
+
+.isl-main { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px 0 6px; cursor: pointer; }
+.island.open .isl-main { height: 52px; padding: 8px 16px 0 8px; }
+.island.idle .isl-main { cursor: default; padding-left: 10px; }
+.isl-logo { display: none; flex: none; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #fff, #b8c0d4 40%, #262a35 85%); box-shadow: 0 0 10px rgba(190,205,255,.5); }
+.island.idle .isl-logo { display: block; }
+.isl-cover { flex: none; width: 22px; height: 22px; border-radius: 7px; object-fit: cover; background: linear-gradient(145deg, #2a2f40, #0b0d14); transition: width .55s var(--spring), height .55s var(--spring), border-radius .55s var(--spring); }
+.island.idle .isl-cover { display: none; }
+.island.open .isl-cover { width: 40px; height: 40px; border-radius: 11px; }
+.isl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.isl-text b { font-size: 12.5px; font-weight: 640; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.isl-text small { display: none; font-size: 11.5px; color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.island.open .isl-text b { font-size: 14.5px; }
+.island.open .isl-text small { display: block; }
+.island.idle .isl-text small { display: none; }
+.isl-eq { flex: none; height: 14px; }
+.isl-eq i { width: 2.5px; background: var(--cov, #fff); }
+.island.idle .isl-eq { display: none; }
+body:not(.is-playing) .isl-eq i { animation-play-state: paused; }
+
+.isl-more { padding: 6px 18px 0; opacity: 0; transform: translateY(-6px); transition: opacity .25s, transform .45s var(--spring); }
+.island.open .isl-more { opacity: 1; transform: none; transition-delay: .1s; }
+.island.idle .isl-more { display: none; }
+.isl-line { height: 18px; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.isl-bar { position: relative; height: 4px; margin: 6px 0 4px; border-radius: 2px; background: rgba(255,255,255,.16); overflow: hidden; }
+.isl-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: var(--cov, #fff); }
+.isl-ctl { display: flex; justify-content: center; align-items: center; gap: 22px; }
+.isl-ctl button { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: rgba(255,255,255,.85); transition: transform .35s var(--spring), background .25s, color .25s; }
+.isl-ctl button svg { width: 18px; height: 18px; }
+.isl-ctl button:hover { background: rgba(255,255,255,.14); color: #fff; transform: scale(1.12); }
+.isl-ctl button:active { transform: scale(.92); }
+#islPlay { width: 34px; height: 34px; background: #fff; color: #000; }
+#islPlay:hover { background: #fff; color: #000; }
+html[data-theme="light"] .island { box-shadow: 0 0 0 1px rgba(0,0,0,.2), 0 10px 26px rgba(30,40,80,.35); }
+
+/* настоящий визуализатор: столбики ведёт спектр звука, готовая анимация не нужна */
+html.viz-on .eq i { animation: none; transition: transform .07s linear; }
+.isl-eq { gap: 2px; }
+.isl-eq i { width: 2.5px; }

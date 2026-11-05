@@ -6,6 +6,7 @@ const lrclib = require('./main/lrclib');
 const { findCover, sniffMime } = require('./main/cover');
 const { StreamServer } = require('./main/stream');
 const { MediaWatcher } = require('./main/media');
+const { session, desktopCapturer } = require('electron');
 const { coverAccent } = require('./main/accent');
 
 const DEFAULTS = {
@@ -43,7 +44,10 @@ const DEFAULTS = {
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
   pillPos: 'left',   // left | center | right
   pillOffset: 0,     // px от края
-  coverAccent: false,   // цвет плашки и оверлея берётся из обложки
+  vizReal: true,        // equalizer reacts to the real sound of the computer (loopback capture, nothing is recorded)
+  island: true,         // «остров» с треком сверху на вкладке «Сейчас играет»
+  bgStyle: 'flow',      // фон окна: flow | soft | stars | off
+  coverAccent: true,    // подсветка на вкладке «Сейчас играет» берёт цвет из обложки
 };
 
 let settings = { ...DEFAULTS };
@@ -59,12 +63,13 @@ const ENUMS = {
   streamFont: ['sans', 'serif', 'mono', 'display'],
   streamAlign: ['left', 'center', 'right'],
   streamLines: [1, 3, 5],
+  bgStyle: ['flow', 'soft', 'stars', 'off'],
 };
 const RANGES = {
   offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
   streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100],
 };
-const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound', 'coverAccent'];
+const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound', 'coverAccent', 'island', 'vizReal'];
 const COLORS = ['pillAccent', 'streamAccent'];
 
 function cleanPatch(src) {
@@ -625,6 +630,13 @@ ipcMain.handle('settings', (_, patch) => applySettingsPatch(patch));
 
 /* ---------- старт ---------- */
 app.whenReady().then(() => {
+  // spectrum for the equalizer: the window asks for the system sound; only levels are read, nothing is recorded or sent anywhere
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    if (!mainWin || mainWin.isDestroyed() || request.frame?.processId !== mainWin.webContents.getProcessId()) return callback({});
+    desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+      .then(sources => callback(sources[0] ? { video: sources[0], audio: 'loopback' } : {}))
+      .catch(() => callback({}));
+  });
   Menu.setApplicationMenu(null);     // убираем стандартное меню: вместе с ним уходят горячие клавиши масштаба, перезагрузки и DevTools
   settingsFile = path.join(app.getPath('userData'), 'settings.json');
   loadSettings();

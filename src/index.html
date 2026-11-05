@@ -102,6 +102,24 @@
       <b>MoonText</b>
     </div>
     <div class="title-status"><span class="eq"><i></i><i></i><i></i><i></i></span><span>Слушаю Windows</span></div>
+
+    <div class="island idle" id="island" aria-label="Сейчас играет">
+      <div class="isl-main" id="islMain">
+        <span class="isl-logo"></span>
+        <img class="isl-cover" id="islCover" alt="">
+        <div class="isl-text"><b id="islTitle">Ничего не играет</b><small id="islArtist"></small></div>
+        <span class="eq isl-eq"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="isl-more">
+        <div class="isl-line" id="islLine"></div>
+        <div class="isl-bar"><i id="islFill"></i></div>
+        <div class="isl-ctl">
+          <button id="islPrev" aria-label="Предыдущий"><svg><use href="#i-prev"/></svg></button>
+          <button id="islPlay" aria-label="Пауза и воспроизведение"><svg><use href="#i-pause"/></svg></button>
+          <button id="islNext" aria-label="Следующий"><svg><use href="#i-next"/></svg></button>
+        </div>
+      </div>
+    </div>
   </header>
 
   <aside class="side glass">
@@ -344,6 +362,10 @@
           <div class="card-t big">Оформление</div>
           <div class="row"><div><div class="card-t">Тема программы</div><div class="card-d">Тёмная, светлая или как в настройках Windows</div></div>
             <div class="seg" id="themeSeg"><i class="seg-ind"></i><button class="active">Тёмная</button><button>Светлая</button><button>Как в системе</button></div></div>
+          <div class="row"><div><div class="card-t">Настоящий визуализатор</div><div class="card-d">Эквалайзер реагирует на реальный звук компьютера. Читается только громкость и спектр, звук не записывается и никуда не уходит</div></div><label class="sw"><input type="checkbox" id="setViz"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Остров с треком</div><div class="card-d">Сверху на вкладке «Сейчас играет»: название, строка текста и кнопки. Раскрывается по клику</div></div><label class="sw"><input type="checkbox" id="setIsland"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Анимированный фон</div><div class="card-d">Плавный свет и звёздное небо двигаются постоянно, «мягкий» — экономный вариант</div></div>
+            <div class="seg" id="bgSeg"><i class="seg-ind"></i><button class="active">Плавный</button><button>Мягкий</button><button>Звёзды</button><button>Выкл</button></div></div>
           <div class="row"><div><div class="card-t">Цвет от обложки</div><div class="card-d">Подсветка текста и полоса времени на вкладке «Сейчас играет» берут цвет из обложки</div></div><label class="sw"><input type="checkbox" id="setCoverAcc"><i></i></label></div>
         </div>
 

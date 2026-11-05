@@ -56,7 +56,7 @@
     for (let k = 0; k < ws.length; k++) {
       if (t >= ws[k].s && t < ws[k].e) { wi = k; p = (t - ws[k].s) / (ws[k].e - ws[k].s); break; }
     }
-    if (wi === -1 && t >= ws[ws.length - 1].e) wi = ws.length - 1;   // строка допета — держим последнее слово
+    if (wi === -1 && t >= ws[ws.length - 1].e) { wi = ws.length - 1; p = 1; }   // строка допета — держим последнее слово залитым
     return { li, wi, p };
   };
 

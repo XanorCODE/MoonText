@@ -62,6 +62,7 @@ function renderLyrics(raw, plain) {
   trackEl.innerHTML = '';
   clearTimeout(browseTimer); browsing = false; lyricsEl.classList.remove('browsing');
   lines = [];
+  islandLine('');
   lastLine = -1; lastWord = -2; pillLine = -1;
   pillTrack.innerHTML = '';
   const isPlain = !raw.length && plain?.length;
@@ -161,6 +162,7 @@ function setTrack(t) {
   $('#tDur').textContent = dur ? fmt(dur) : '–:––';
   $('.cover').classList.remove('has-art');
   pushRecent(t);
+  islandTrack(t);
 }
 
 function setIdle() {
@@ -172,6 +174,7 @@ function setIdle() {
   $('#trTitle').textContent = 'Ничего не играет';
   $('#trArtist').textContent = 'Включите музыку в любом приложении';
   $('#srcName').textContent = 'Windows';
+  islandIdle();
   $('#tDur').textContent = '0:00';
   $('.cover').classList.remove('has-art');
   setChip('Ожидаю трек', false);
@@ -182,6 +185,7 @@ function setIdle() {
 function setCover(src) {
   $('#coverImg').src = src;
   $('.cover').classList.add('has-art');
+  islandCover(src);
   saveThumb(track, src);
 }
 
@@ -217,6 +221,8 @@ function setPlayIcon(playing) {
   const fresh = svg.cloneNode(true);
   fresh.querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play');
   svg.replaceWith(fresh);
+  $('#islPlay use').setAttribute('href', playing ? '#i-pause' : '#i-play');
+  if (playing) vizStart(); else if (!viz) { /* paused and never started: nothing to do */ }
 }
 
 /* недавние */
@@ -387,9 +393,11 @@ function frame() {
       lines.forEach((l, i) => {
         l.el.classList.toggle('active', i === li);
         l.el.classList.toggle('near', Math.abs(i - li) === 1);
+        l.el.classList.toggle('past', i < li);
         if (i !== li) l.words.forEach(w => { w.el.classList.remove('done', 'cur'); w.el.style.removeProperty('--p'); w.live = false; });
       });
       scrollTo(li);
+      islandLine(lines[li] ? lines[li].text : '');
       if (li !== pillLine) buildPill(li);
       lastLine = li;
     }
@@ -408,7 +416,7 @@ function frame() {
   if (curPage === 'now') {
     const pct = dur > 0 ? Math.min(100, Math.max(0, (clock.now() / dur) * 100)) : 0;
     const q = Math.round(pct * 20) / 20;                                  // полоса меняется шагом 0,05 % — лишних перерисовок нет
-    if (q !== shownPct) { shownPct = q; seekFill.style.width = q + '%'; seekKnob.style.left = q + '%'; }
+    if (q !== shownPct) { shownPct = q; seekFill.style.width = q + '%'; seekKnob.style.left = q + '%'; $('#islFill').style.width = q + '%'; }
     const sec = Math.floor(Math.min(dur || Infinity, Math.max(0, clock.now())));
     if (sec !== shownSec) { shownSec = sec; tCurEl.textContent = fmt(sec); }
   }
@@ -471,6 +479,8 @@ function applyTheme() {
 }
 systemLight.addEventListener('change', () => { if (settings.appTheme === 'auto') applyTheme(); });
 
+const BG = ['flow', 'soft', 'stars', 'off'];
+const setBgSeg = initSeg($('#bgSeg'), (b, i) => save({ bgStyle: BG[i] }));
 const setStyleSeg = initSeg($('#styleSeg'), (b, i) => save({ pillSize: i }));
 const setRoundSeg = initSeg($('#roundSeg'), (b, i) => save({ pillRound: i === 0 }));
 const POS = ['left', 'center', 'right'];
@@ -508,10 +518,88 @@ $('#shiftMinus').addEventListener('click', () => nudgeShift(-100));
 $('#shiftPlus').addEventListener('click', () => nudgeShift(100));
 $('#shiftVal').addEventListener('click', () => nudgeShift(null));
 
+/* настоящий визуализатор: звук системы (loopback) -> спектр -> столбики всех эквалайзеров */
+let viz = null, vizFail = false, vizBusy = false, vizLast = 0;
+async function vizStart() {
+  if (!hasMoon || viz || vizBusy || vizFail || settings.vizReal === false) return;
+  vizBusy = true;
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { width: 2, height: 2, frameRate: 1 } });
+    stream.getVideoTracks().forEach(t => t.stop());
+    if (!stream.getAudioTracks().length) { stream.getTracks().forEach(t => t.stop()); throw new Error('no audio'); }
+    const ctx = new AudioContext();
+    const an = ctx.createAnalyser();
+    an.fftSize = 512; an.smoothingTimeConstant = 0.6;
+    ctx.createMediaStreamSource(stream).connect(an);          // not connected to the output: nothing is played back
+    await ctx.resume();
+    viz = { ctx, an, stream, data: new Uint8Array(an.frequencyBinCount) };
+    document.documentElement.classList.add('viz-on');
+    requestAnimationFrame(vizLoop);
+  } catch (e) {
+    // the capture may need a user gesture: try again on the first click or key press
+    if (e && e.name === 'NotAllowedError') {
+      const again = () => { removeEventListener('pointerdown', again, true); removeEventListener('keydown', again, true); vizStart(); };
+      addEventListener('pointerdown', again, true); addEventListener('keydown', again, true);
+    } else vizFail = true;
+  }
+  vizBusy = false;
+}
+function vizStop() {
+  if (!viz) return;
+  viz.stream.getTracks().forEach(t => t.stop());
+  viz.ctx.close().catch(() => {});
+  viz = null;
+  document.documentElement.classList.remove('viz-on');
+  $$('.eq i').forEach(i => { i.style.transform = ''; });
+}
+function vizLoop(now) {
+  if (!viz) return;
+  requestAnimationFrame(vizLoop);
+  if (now - vizLast < 33 || document.hidden) return;        // about 30 frames a second, nothing in a hidden window
+  vizLast = now;
+  viz.an.getByteFrequencyData(viz.data);
+  const d = viz.data, n = d.length;
+  $$('.eq').forEach(eq => {
+    if (!eq.offsetParent) return;                           // skip equalizers that are not on screen
+    const bars = eq.children, k = bars.length;
+    for (let b = 0; b < k; b++) {
+      // bands are spaced like the ear hears them: more bars for the low end, fewer for the highs
+      const lo = Math.floor(2 * Math.pow(n * 0.55 / 2, b / k)), hi = Math.max(lo + 1, Math.floor(2 * Math.pow(n * 0.55 / 2, (b + 1) / k)));
+      let sum = 0;
+      for (let j = lo; j < hi && j < n; j++) sum += d[j];
+      const v = Math.pow(sum / ((hi - lo) * 255), 0.8);
+      bars[b].style.transform = 'scaleY(' + Math.min(1, 0.14 + v * 1.25).toFixed(3) + ')';
+    }
+  });
+}
+
+/* «остров» сверху: компактно показывает трек, по клику раскрывается (ещё клик или клик мимо — сворачивается) */
+const island = $('#island');
+function islandTrack(t) {
+  island.classList.remove('idle', 'has-art');
+  $('#islCover').removeAttribute('src');
+  $('#islTitle').textContent = (t.title || '').trim() || 'Без названия';
+  $('#islArtist').textContent = (t.artist || '').trim() || 'Неизвестный исполнитель';
+  $('#islLine').textContent = '';
+}
+function islandCover(src) { $('#islCover').src = src; island.classList.add('has-art'); }
+function islandLine(text) { $('#islLine').textContent = text || ''; }
+function islandIdle() {
+  island.classList.add('idle'); island.classList.remove('open', 'has-art');
+  $('#islTitle').textContent = 'Ничего не играет'; $('#islArtist').textContent = ''; $('#islLine').textContent = '';
+}
+$('#islMain').addEventListener('click', () => { if (!island.classList.contains('idle')) island.classList.toggle('open'); });
+$('#islPlay').addEventListener('click', () => $('#playBtn').click());
+$('#islPrev').addEventListener('click', () => { if (hasMoon) window.moon.control('prev'); });
+$('#islNext').addEventListener('click', () => { if (hasMoon) window.moon.control('next'); });
+document.addEventListener('click', e => { if (!island.contains(e.target)) island.classList.remove('open'); });
+addEventListener('keydown', e => { if (e.key === 'Escape') island.classList.remove('open'); });
+
 function applyCov() {
   const el = $('#p-now'), on = !!(covAccent && settings.coverAccent);
   el.classList.toggle('tinted', on);
-  if (on) el.style.setProperty('--cov', covAccent); else el.style.removeProperty('--cov');
+  if (on) { el.style.setProperty('--cov', covAccent); island.style.setProperty('--cov', covAccent); }
+  else { el.style.removeProperty('--cov'); island.style.removeProperty('--cov'); }
 }
 
 function applySettings(s, local) {
@@ -519,6 +607,11 @@ function applySettings(s, local) {
   applyCov();
   applyTheme();
   setThemeSeg(Math.max(0, THEMES.indexOf(settings.appTheme)));
+  const bg = BG.includes(settings.bgStyle) ? settings.bgStyle : 'flow';
+  document.documentElement.dataset.bg = bg;
+  document.documentElement.dataset.island = settings.island === false ? '0' : '1';
+  if (settings.vizReal === false) vizStop(); else if (playingUi) vizStart();
+  setBgSeg(BG.indexOf(bg));
   lyricsEl.classList.toggle('mode-word', settings.wordAnim);
   lyricsEl.classList.toggle('mode-line', !settings.wordAnim);
   $('#modeChip').textContent = settings.wordAnim ? 'По словам' : 'По строкам';
@@ -550,6 +643,8 @@ function applySettings(s, local) {
     $('#setFs').checked = settings.hideFullscreen;
     $('#setAutoUpd').checked = settings.autoDownloadUpdates !== false;
     $('#setCoverAcc').checked = !!settings.coverAccent;
+    $('#setIsland').checked = settings.island !== false;
+    $('#setViz').checked = settings.vizReal !== false;
     $('#setEdge').value = settings.pillOffset;
     $('#setAutostart').checked = settings.autostart;
     $('#setPill').checked = settings.showPill;
@@ -587,6 +682,8 @@ $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value })
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
 $('#setAutoUpd').addEventListener('change', e => save({ autoDownloadUpdates: e.target.checked }));
 $('#setCoverAcc').addEventListener('change', e => save({ coverAccent: e.target.checked }));
+$('#setIsland').addEventListener('change', e => save({ island: e.target.checked }));
+$('#setViz').addEventListener('change', e => save({ vizReal: e.target.checked }));
 
 /* ---------- источники музыки: что слушать, а что игнорировать ---------- */
 let seenSources = [];
@@ -633,7 +730,7 @@ function go(page) {
     if (on) navInd.style.transform = `translateY(${i * 50}px)`;
   });
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'p-' + page));
-  curPage = page; shownSec = -1; shownPct = -1;                         // цикл мог спать — пусть перерисует время и полосу
+  curPage = page; document.body.dataset.page = page; shownSec = -1; shownPct = -1;                         // цикл мог спать — пусть перерисует время и полосу
   if (page === 'bar') lastWord = -2;
   if (page === 'stream') { fitStages(); requestAnimationFrame(fitStages); }
   if (page === 'lib') loadLibrary();

@@ -520,6 +520,26 @@ $('#shiftVal').addEventListener('click', () => nudgeShift(null));
 
 /* настоящий визуализатор: звук системы (loopback) -> спектр -> столбики всех эквалайзеров */
 let viz = null, vizFail = false, vizBusy = false, vizLast = 0;
+/* бас: уровень низких частот относительно недавнего максимума (автоусиление); фон следует за ним плавно, без поиска ритма */
+const beat = { peak: 0.2, low: 1, pulse: 0 };
+const bgEl = $('.bg');
+const beatLabel = v => v === 0 ? 'Выключено' : `Фон мягко пульсирует вместе с басом: ${v}%`;
+function beatStrength() { return settings.bgStyle === 'off' ? 0 : Math.max(0, Math.min(100, +settings.bgBeat >= 0 ? +settings.bgBeat : 55)) / 100; }
+function beatStep(d) {
+  const bass = (d[1] * 1.2 + d[2] * 1.2 + d[3] + d[4] * 0.8 + d[5] * 0.5) / 4.7 / 255;      // roughly 45–280 Hz
+  // the byte spectrum is logarithmic, so swings look small: stretch them between the recent floor and the recent ceiling
+  beat.peak = Math.max(bass, beat.peak * 0.996, 0.2);
+  beat.low = Math.min(bass, beat.low + 0.0015);
+  const rel = Math.min(1, Math.max(0, (bass - beat.low) / Math.max(beat.peak - beat.low, 0.15)));
+  const abs = Math.min(1, Math.max(0, (bass - 0.35) / 0.45));                               // plain loudness of the low end keeps a gentle glow
+  const target = bass < 0.07 ? 0 : Math.pow(rel, 1.2) * 0.7 + abs * 0.3;
+  beat.pulse += (target - beat.pulse) * (target > beat.pulse ? 0.65 : 0.16);              // fast attack, softer release
+  if (beat.pulse < 0.004) beat.pulse = 0;
+}
+function beatApply() {
+  bgEl.style.setProperty('--bs', beatStrength().toFixed(2));
+  bgEl.style.setProperty('--beat', beat.pulse.toFixed(3));
+}
 async function vizStart() {
   if (!hasMoon || viz || vizBusy || vizFail || settings.vizReal === false) return;
   vizBusy = true;
@@ -529,7 +549,7 @@ async function vizStart() {
     if (!stream.getAudioTracks().length) { stream.getTracks().forEach(t => t.stop()); throw new Error('no audio'); }
     const ctx = new AudioContext();
     const an = ctx.createAnalyser();
-    an.fftSize = 512; an.smoothingTimeConstant = 0.6;
+    an.fftSize = 1024; an.smoothingTimeConstant = 0.5;
     ctx.createMediaStreamSource(stream).connect(an);          // not connected to the output: nothing is played back
     await ctx.resume();
     viz = { ctx, an, stream, data: new Uint8Array(an.frequencyBinCount) };
@@ -551,6 +571,7 @@ function vizStop() {
   viz = null;
   document.documentElement.classList.remove('viz-on');
   $$('.eq i').forEach(i => { i.style.transform = ''; });
+  beat.pulse = 0; beatApply();
 }
 function vizLoop(now) {
   if (!viz) return;
@@ -559,6 +580,8 @@ function vizLoop(now) {
   vizLast = now;
   viz.an.getByteFrequencyData(viz.data);
   const d = viz.data, n = d.length;
+  if (document.hasFocus() && beatStrength() > 0) { beatStep(d); beatApply(); }
+  else if (beat.pulse) { beat.pulse = 0; beatApply(); }
   $$('.eq').forEach(eq => {
     if (!eq.offsetParent) return;                           // skip equalizers that are not on screen
     const bars = eq.children, k = bars.length;
@@ -610,6 +633,7 @@ function applySettings(s, local) {
   const bg = BG.includes(settings.bgStyle) ? settings.bgStyle : 'flow';
   document.documentElement.dataset.bg = bg;
   document.documentElement.dataset.island = settings.island === false ? '0' : '1';
+  bgEl.style.setProperty('--bs', beatStrength().toFixed(2));
   if (settings.vizReal === false) vizStop(); else if (playingUi) vizStart();
   setBgSeg(BG.indexOf(bg));
   lyricsEl.classList.toggle('mode-word', settings.wordAnim);
@@ -645,6 +669,8 @@ function applySettings(s, local) {
     $('#setCoverAcc').checked = !!settings.coverAccent;
     $('#setIsland').checked = settings.island !== false;
     $('#setViz').checked = settings.vizReal !== false;
+    $('#setBeat').value = beatStrength() * 100;
+    $('#beatLabel').textContent = beatLabel(Math.round(beatStrength() * 100));
     $('#setEdge').value = settings.pillOffset;
     $('#setAutostart').checked = settings.autostart;
     $('#setPill').checked = settings.showPill;
@@ -684,6 +710,8 @@ $('#setAutoUpd').addEventListener('change', e => save({ autoDownloadUpdates: e.t
 $('#setCoverAcc').addEventListener('change', e => save({ coverAccent: e.target.checked }));
 $('#setIsland').addEventListener('change', e => save({ island: e.target.checked }));
 $('#setViz').addEventListener('change', e => save({ vizReal: e.target.checked }));
+$('#setBeat').addEventListener('input', e => { $('#beatLabel').textContent = beatLabel(+e.target.value); });
+$('#setBeat').addEventListener('change', e => save({ bgBeat: +e.target.value }));
 
 /* ---------- источники музыки: что слушать, а что игнорировать ---------- */
 let seenSources = [];

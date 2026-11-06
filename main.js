@@ -44,6 +44,7 @@ const DEFAULTS = {
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
   pillPos: 'left',   // left | center | right
   pillOffset: 0,     // px от края
+  bgBeat: 55,           // how strongly the background reacts to beats, 0 = off
   vizReal: true,        // equalizer reacts to the real sound of the computer (loopback capture, nothing is recorded)
   island: true,         // «остров» с треком сверху на вкладке «Сейчас играет»
   bgStyle: 'flow',      // фон окна: flow | soft | stars | off
@@ -67,7 +68,7 @@ const ENUMS = {
 };
 const RANGES = {
   offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
-  streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100],
+  streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100], bgBeat: [0, 100],
 };
 const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound', 'coverAccent', 'island', 'vizReal'];
 const COLORS = ['pillAccent', 'streamAccent'];

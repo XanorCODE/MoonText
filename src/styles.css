@@ -789,3 +789,14 @@ html[data-theme="light"] .island { box-shadow: 0 0 0 1px rgba(0,0,0,.2), 0 10px 
 html.viz-on .eq i { animation: none; transition: transform .07s linear; }
 .isl-eq { gap: 2px; }
 .isl-eq i { width: 2.5px; }
+
+/* фон в такт музыке: --beat (0..1, затухает) и --bs (сила из настроек) выставляет скрипт */
+.bg { --beat: 0; --bs: 0; }
+.bg .orb { scale: calc(1 + var(--beat) * var(--bs) * .12); }
+html[data-bg="flow"] .orb { opacity: calc(.8 + var(--beat) * var(--bs) * .2); }
+html[data-bg="soft"] .orb { opacity: calc(.7 + var(--beat) * var(--bs) * .3); }
+html[data-bg="flow"] .bg::before { opacity: calc(.6 + var(--beat) * var(--bs) * .4); }
+html[data-bg="stars"] .bg::after { opacity: calc(.75 + var(--beat) * var(--bs) * .25); }
+
+/* уровень басов меняется 30 раз в секунду: короткий переход делает движение плавным */
+.bg .orb { transition: scale .08s linear, opacity .08s linear; }

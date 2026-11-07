@@ -12,7 +12,8 @@ const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2,
 let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoDownloadUpdates: true, ignoredApps: [], showPill: true, wordAnim: true, offset: 0, pillSize: 1, adaptive: true, speed: 60,
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
-  streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false };
+  streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false,
+  coverAccent: true, island: true, vizReal: true, bgStyle: 'flow', bgBeat: 55 };
 let track = null, shift = 0, covAccent = null;
 let lines = [];
 let dur = 0;
@@ -222,7 +223,7 @@ function setPlayIcon(playing) {
   fresh.querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play');
   svg.replaceWith(fresh);
   $('#islPlay use').setAttribute('href', playing ? '#i-pause' : '#i-play');
-  if (playing) vizStart(); else if (!viz) { /* paused and never started: nothing to do */ }
+  if (playing) { vizStart(); vizWake(true); } else vizWake(false);
 }
 
 /* недавние */
@@ -380,7 +381,7 @@ function frame() {
   if (!lively) return nextFrame(true);
   // заливка слова перерисовывается примерно 30 раз в секунду (в фоне — 15): на глаз то же самое, а нагрузка на видеокарту вдвое меньше
   const nowMs = performance.now(), step = document.hasFocus() ? 32 : 64;
-  if (nowMs - lastTick < step - 4) return requestAnimationFrame(frame);
+  if (nowMs - lastTick < step - 4) return setTimeout(() => requestAnimationFrame(frame), step - 4 - (nowMs - lastTick));   // high refresh screens: do not spin on every vsync
   lastTick = nowMs;
 
   let t = clock.now();
@@ -396,21 +397,24 @@ function frame() {
         l.el.classList.toggle('past', i < li);
         if (i !== li) l.words.forEach(w => { w.el.classList.remove('done', 'cur'); w.el.style.removeProperty('--p'); w.live = false; });
       });
-      scrollTo(li);
+      if (curPage === 'now') scrollTo(li);
       islandLine(lines[li] ? lines[li].text : '');
-      if (li !== pillLine) buildPill(li);
       lastLine = li;
     }
     const l = lines[li];
-    l.words.forEach((w, k) => {
+    // the words and the pill preview are drawn only on their own tab: hidden ones would restyle on every screen refresh
+    if (curPage === 'now') l.words.forEach((w, k) => {
       w.el.classList.toggle('done', k < wi || (k === wi && t >= w.e));
       const cur = k === wi && t < w.e;
       w.el.classList.toggle('cur', cur);
       if (cur) { w.el.style.setProperty('--p', p.toFixed(3)); w.live = true; }
       else if (w.live) { w.el.style.removeProperty('--p'); w.live = false; }   // дальше заливкой управляет класс done
     });
-    if (wi !== lastWord && pillLine === li) { updatePill(li, wi < 0 ? 0 : wi); lastWord = wi; }
-    if (settings.pillAnim === 'fill' && pillLine === li && wi >= 0) l.words[wi].pEl?.style.setProperty('--p', p.toFixed(3));
+    if (curPage === 'bar') {
+      if (li !== pillLine) buildPill(li);
+      if (wi !== lastWord && pillLine === li) { updatePill(li, wi < 0 ? 0 : wi); lastWord = wi; }
+      if (settings.pillAnim === 'fill' && pillLine === li && wi >= 0) l.words[wi].pEl?.style.setProperty('--p', p.toFixed(3));
+    }
   }
 
   if (curPage === 'now') {
@@ -519,10 +523,10 @@ $('#shiftPlus').addEventListener('click', () => nudgeShift(100));
 $('#shiftVal').addEventListener('click', () => nudgeShift(null));
 
 /* настоящий визуализатор: звук системы (loopback) -> спектр -> столбики всех эквалайзеров */
-let viz = null, vizFail = false, vizBusy = false, vizLast = 0;
+let viz = null, vizFail = false, vizBusy = false;
 /* бас: уровень низких частот относительно недавнего максимума (автоусиление); фон следует за ним плавно, без поиска ритма */
 const beat = { peak: 0.2, low: 1, pulse: 0 };
-const bgEl = $('.bg');
+const bgEl = $('.orbs');
 const beatLabel = v => v === 0 ? 'Выключено' : `Фон мягко пульсирует вместе с басом: ${v}%`;
 function beatStrength() { return settings.bgStyle === 'off' ? 0 : Math.max(0, Math.min(100, +settings.bgBeat >= 0 ? +settings.bgBeat : 55)) / 100; }
 function beatStep(d) {
@@ -536,9 +540,11 @@ function beatStep(d) {
   beat.pulse += (target - beat.pulse) * (target > beat.pulse ? 0.65 : 0.16);              // fast attack, softer release
   if (beat.pulse < 0.004) beat.pulse = 0;
 }
+const beatOut = { bs: '', beat: '' };
 function beatApply() {
-  bgEl.style.setProperty('--bs', beatStrength().toFixed(2));
-  bgEl.style.setProperty('--beat', beat.pulse.toFixed(3));
+  const bs = beatStrength().toFixed(2), b = beat.pulse.toFixed(2);
+  if (bs !== beatOut.bs) { bgEl.style.setProperty('--bs', bs); beatOut.bs = bs; }
+  if (b !== beatOut.beat) { bgEl.style.setProperty('--beat', b); beatOut.beat = b; }
 }
 async function vizStart() {
   if (!hasMoon || viz || vizBusy || vizFail || settings.vizReal === false) return;
@@ -554,7 +560,7 @@ async function vizStart() {
     await ctx.resume();
     viz = { ctx, an, stream, data: new Uint8Array(an.frequencyBinCount) };
     document.documentElement.classList.add('viz-on');
-    requestAnimationFrame(vizLoop);
+    vizLoop();
   } catch (e) {
     // the capture may need a user gesture: try again on the first click or key press
     if (e && e.name === 'NotAllowedError') {
@@ -569,31 +575,81 @@ function vizStop() {
   viz.stream.getTracks().forEach(t => t.stop());
   viz.ctx.close().catch(() => {});
   viz = null;
+  clearTimeout(vizNap);
   document.documentElement.classList.remove('viz-on');
-  $$('.eq i').forEach(i => { i.style.transform = ''; });
+  $$('.eq').forEach(eq => { eq._s = null; });
   beat.pulse = 0; beatApply();
 }
-function vizLoop(now) {
+/* the audio graph sleeps while nothing plays or the window is hidden: the capture then costs nothing */
+let vizNap = 0;
+function vizWake(on) {
   if (!viz) return;
-  requestAnimationFrame(vizLoop);
-  if (now - vizLast < 33 || document.hidden) return;        // about 30 frames a second, nothing in a hidden window
-  vizLast = now;
+  clearTimeout(vizNap);
+  if (on) { if (viz.ctx.state !== 'running') viz.ctx.resume().catch(() => {}); return; }
+  vizNap = setTimeout(() => {
+    if (!viz) return;
+    viz.ctx.suspend().catch(() => {});
+    $$('.eq').forEach(eq => { if (eq._s) eq._s.fill(0); if (eq._cv) eqDraw(eq); });
+    beat.pulse = 0; beatApply();
+  }, 1500);
+}
+document.addEventListener('visibilitychange', () => vizWake(!document.hidden && playingUi));
+
+/* equalizers are drawn on a tiny canvas: round caps stay round, nothing is restyled, and the island gets a soft symmetric wave */
+function eqSetup(eq, frame) {
+  if (!eq._cv) { eq._cv = document.createElement('canvas'); eq.appendChild(eq._cv); eq._g = eq._cv.getContext('2d'); }
+  if (!eq._s || frame - (eq._at || -99) > 30) {                     // size and color are rechecked about once a second
+    eq._at = frame;
+    const n = eq.querySelectorAll('i').length, dpr = Math.max(2, devicePixelRatio || 1);      // drawn at least at 2x: crisp caps at any scaling
+    const w = Math.round(eq.clientWidth * dpr), h = Math.round(eq.clientHeight * dpr);
+    if (eq._cv.width !== w || eq._cv.height !== h) { eq._cv.width = w; eq._cv.height = h; }
+    eq._col = getComputedStyle(eq.querySelector('i')).backgroundColor;
+    if (!eq._s || eq._s.length !== n) { eq._s = new Float32Array(n); eq._pk = new Float32Array(n).fill(0.3); eq._fl = new Float32Array(n).fill(0.2); }
+    eq._wave = eq.classList.contains('isl-eq');
+  }
+}
+function eqDraw(eq) {
+  const g = eq._g, cv = eq._cv, s = eq._s, n = s.length, W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  const bw = W / (n + (n - 1) * 0.75), gap = bw * 0.75, r = bw / 2;
+  g.fillStyle = eq._col;
+  for (let b = 0; b < n; b++) {
+    const h = Math.max(bw, s[b] * H), x = b * (bw + gap), y = eq._wave ? (H - h) / 2 : H - h;
+    g.globalAlpha = 0.5 + 0.5 * s[b];
+    g.beginPath(); g.roundRect(x, y, bw, h, r); g.fill();
+  }
+  g.globalAlpha = 1;
+}
+let vizFrame = 0;
+function vizLoop() {
+  if (!viz) return;
+  // about 30 frames a second in front, 10 behind other windows; a timer, so 144-240 Hz screens do not wake it more often
+  setTimeout(vizLoop, document.hasFocus() ? 33 : 100);
+  if (document.hidden || viz.ctx.state !== 'running') return;
+  vizFrame++;
   viz.an.getByteFrequencyData(viz.data);
   const d = viz.data, n = d.length;
   if (document.hasFocus() && beatStrength() > 0) { beatStep(d); beatApply(); }
   else if (beat.pulse) { beat.pulse = 0; beatApply(); }
-  $$('.eq').forEach(eq => {
-    if (!eq.offsetParent) return;                           // skip equalizers that are not on screen
-    const bars = eq.children, k = bars.length;
+  const eqs = $$('.eq').filter(eq => eq.offsetParent && (curPage === 'now' || !eq.closest('.island')));
+  for (const eq of eqs) {
+    eqSetup(eq, vizFrame);
+    const s = eq._s, k = s.length;
     for (let b = 0; b < k; b++) {
       // bands are spaced like the ear hears them: more bars for the low end, fewer for the highs
       const lo = Math.floor(2 * Math.pow(n * 0.55 / 2, b / k)), hi = Math.max(lo + 1, Math.floor(2 * Math.pow(n * 0.55 / 2, (b + 1) / k)));
       let sum = 0;
       for (let j = lo; j < hi && j < n; j++) sum += d[j];
-      const v = Math.pow(sum / ((hi - lo) * 255), 0.8);
-      bars[b].style.transform = 'scaleY(' + Math.min(1, 0.14 + v * 1.25).toFixed(3) + ')';
+      const v = sum / ((hi - lo) * 255);
+      // every bar uses its own range (recent floor to recent peak), so highs move as much as the bass
+      eq._pk[b] = Math.max(v, eq._pk[b] * 0.995, 0.25);
+      eq._fl[b] = Math.min(v, eq._fl[b] + 0.003);
+      let t = v < 0.06 ? 0 : Math.pow(Math.min(1, Math.max(0, (v - eq._fl[b]) / Math.max(eq._pk[b] - eq._fl[b], 0.12))), 1.15);
+      if (eq._wave) t *= 0.72 + 0.28 * Math.sin(Math.PI * (b + 0.5) / k);       // the island wave is taller in the middle
+      s[b] += (t - s[b]) * (t > s[b] ? 0.6 : 0.22);                               // quick rise, soft fall
     }
-  });
+    eqDraw(eq);
+  }
 }
 
 /* «остров» сверху: компактно показывает трек, по клику раскрывается (ещё клик или клик мимо — сворачивается) */
@@ -759,7 +815,7 @@ function go(page) {
   });
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'p-' + page));
   curPage = page; document.body.dataset.page = page; shownSec = -1; shownPct = -1;                         // цикл мог спать — пусть перерисует время и полосу
-  if (page === 'bar') lastWord = -2;
+  if (page === 'bar') { lastWord = -2; pillLine = -1; }      // the preview is not drawn on other tabs: rebuild it on entry
   if (page === 'stream') { fitStages(); requestAnimationFrame(fitStages); }
   if (page === 'lib') loadLibrary();
   if (page === 'now' && lastLine >= 0) setTimeout(() => scrollTo(lastLine), 50);

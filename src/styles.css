@@ -57,8 +57,7 @@ svg { width: 22px; height: 22px; flex: none; }
 .logo { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #fff, #b8c0d4 40%, #262a35 85%); box-shadow: 0 0 14px rgba(190,205,255,.55); position: relative; }
 .logo::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #000; transform: translate(34%, -10%) scale(.78); }
 .title-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px #fff; animation: pulse 2s steps(16) infinite; display: inline-block; }
-@keyframes pulse { 50% { opacity: .35; transform: scale(.7); } }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.14), 0 0 10px rgba(255,255,255,.6); display: inline-block; }      /* steady glow: the pulse ran on the main thread on every screen refresh */
 
 /* ---------- сайдбар ---------- */
 .side { display: flex; flex-direction: column; justify-content: space-between; padding: 14px; border-radius: 30px; animation: rise .9s var(--smooth) both; }
@@ -175,7 +174,7 @@ html[data-theme="light"] .shift button:hover, html[data-theme="light"] .shift #s
 .line.active { opacity: 1; filter: none; transform: scale(1); }
 
 /* слово = тусклая основа + белый слой сверху, который «заливается» слева направо маской */
-.line .w { display: inline-block; margin: 0 .22em 0 0; color: #fff; --p: 0; filter: drop-shadow(0 0 0 rgba(255,255,255,0)); transition: transform .45s var(--smooth), filter .45s var(--smooth); }
+.line .w { display: inline-block; margin: 0 .22em 0 0; color: #fff; --p: 0; transition: transform .45s var(--smooth); }
 
 /* Одно слово = один слой: градиент, обрезанный по буквам. Второго слоя поверх нет, поэтому нет и каймы по контуру букв. */
 .mode-word .line.active .w {
@@ -184,10 +183,10 @@ html[data-theme="light"] .shift button:hover, html[data-theme="light"] .shift #s
   background-repeat: no-repeat;
   -webkit-background-clip: text; background-clip: text;
   padding: .06em .05em .14em; margin: -.06em calc(.22em - .05em) -.14em -.05em;     /* запас под выносные элементы букв */
-  transition: --p .35s linear, transform .45s var(--smooth), filter .45s var(--smooth);
+  transition: transform .45s var(--smooth);      /* --p is set 30 times a second from the script; filter and --p transitions would restyle on every screen refresh */
 }
 .mode-word .line.active .w.done { --p: 1; }
-.mode-word .line.active .w.cur { transform: translateY(-2px); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--cov, #fff) 45%, transparent)); transition: transform .45s var(--smooth), filter .45s var(--smooth); }
+.mode-word .line.active .w.cur { transform: translateY(-2px); filter: drop-shadow(0 0 14px color-mix(in srgb, var(--cov, #fff) 45%, transparent)); }
 
 /* ---------- сегменты ---------- */
 .seg { position: relative; display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.06); box-shadow: inset 0 1px 3px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06); }
@@ -422,16 +421,16 @@ body:not(.is-playing) .rec .eq { display: none; }
 .ver-btn:hover { color: #fff; background: rgba(255,255,255,.14); transform: translateY(-1px); }
 .ver-btn:active { transform: scale(.94); }
 
-.modal { position: fixed; inset: 0; z-index: 50; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 24px; background: rgba(0,0,0,.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity .35s var(--smooth), visibility 0s .35s; }
+.modal { position: fixed; inset: 0; z-index: 50; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 48px 24px 24px; background: rgba(0,0,0,.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity .35s var(--smooth), visibility 0s .35s; }
 .modal.open { opacity: 1; visibility: visible; transition-delay: 0s; }
-.modal-card { width: min(640px, 100%); max-height: min(78vh, 680px); display: flex; flex-direction: column; border-radius: 28px; transform: translateY(24px) scale(.96); transition: transform .6s var(--spring); }
+.modal-card { width: min(640px, 100%); max-height: min(calc(100vh - 96px), 680px); display: flex; flex-direction: column; border-radius: 28px; transform: translateY(24px) scale(.96); transition: transform .6s var(--spring); }
 .modal.open .modal-card { transform: none; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 6px 28px; }
 .modal-head h3 { font-size: 24px; font-weight: 720; letter-spacing: -.02em; }
 .modal-body { overflow: auto; padding: 8px 28px 26px; display: flex; flex-direction: column; gap: 22px; }
 .modal-body::-webkit-scrollbar { width: 0; height: 0; }
 
-.ed-card { position: relative; width: min(1040px, 100%); height: min(92vh, 900px); max-height: none; }
+.ed-card { position: relative; width: min(1040px, 100%); height: min(calc(100vh - 72px), 900px); max-height: none; }
 .ed-head { display: flex; align-items: center; gap: 16px; padding: 20px 22px 14px 24px; }
 .ed-cover { flex: none; width: 56px; height: 56px; border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); background-size: cover; background-position: center; }
 .ed-title { flex: 1; min-width: 0; }
@@ -502,8 +501,8 @@ body:not(.is-playing) .rec .eq { display: none; }
 .ed-paste[hidden] { display: none; }
 .ed-paste textarea { flex: 1; resize: none; line-height: 1.5; }
 @media (max-height: 820px) {
-  .modal:has(.ed-card) { padding: 14px; }
-  .ed-card { height: calc(100vh - 28px); }
+  .modal:has(.ed-card) { padding: 48px 14px 14px; }
+  .ed-card { height: calc(100vh - 62px); }
   .ed-head { gap: 12px; padding: 12px 16px 8px 20px; }
   .ed-cover { width: 40px; height: 40px; border-radius: 12px; }
   .ed-title h3 { font-size: 18px; }
@@ -741,8 +740,8 @@ html[data-theme="light"][data-bg="flow"] .bg::before { opacity: .8; }
 .island {
   position: absolute; left: 50%; top: 6px; z-index: 40; width: 232px; height: 34px; border-radius: 17px; overflow: hidden;
   transform: translateX(-50%); -webkit-app-region: no-drag;
-  background: #000; color: #fff;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 10px 30px rgba(0,0,0,.55);
+  background: linear-gradient(180deg, #111219, #000 70%); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px rgba(255,255,255,.1), 0 10px 30px rgba(0,0,0,.55), 0 0 26px color-mix(in srgb, var(--cov, transparent) 22%, transparent);
   transition: width .55s var(--spring), height .55s var(--spring), border-radius .55s var(--spring), opacity .35s var(--smooth), transform .55s var(--spring);
 }
 .island * { -webkit-app-region: no-drag; }
@@ -786,17 +785,31 @@ body:not(.is-playing) .isl-eq i { animation-play-state: paused; }
 html[data-theme="light"] .island { box-shadow: 0 0 0 1px rgba(0,0,0,.2), 0 10px 26px rgba(30,40,80,.35); }
 
 /* настоящий визуализатор: столбики ведёт спектр звука, готовая анимация не нужна */
-html.viz-on .eq i { animation: none; transition: transform .07s linear; }
-.isl-eq { gap: 2px; }
-.isl-eq i { width: 2.5px; }
+/* настоящий визуализатор рисуется на холсте поверх столбиков; сами столбики держат размер и цвет */
+.eq { position: relative; }
+.eq canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+html.viz-on .eq canvas { display: block; }
+html.viz-on .eq i { animation: none; visibility: hidden; }
+.isl-eq { gap: 1.5px; height: 16px; }
+.isl-eq i { width: 2px; }
+.island.open .isl-eq { height: 22px; }
 
-/* фон в такт музыке: --beat (0..1, затухает) и --bs (сила из настроек) выставляет скрипт */
-.bg { --beat: 0; --bs: 0; }
-.bg .orb { scale: calc(1 + var(--beat) * var(--bs) * .12); }
-html[data-bg="flow"] .orb { opacity: calc(.8 + var(--beat) * var(--bs) * .2); }
-html[data-bg="soft"] .orb { opacity: calc(.7 + var(--beat) * var(--bs) * .3); }
-html[data-bg="flow"] .bg::before { opacity: calc(.6 + var(--beat) * var(--bs) * .4); }
-html[data-bg="stars"] .bg::after { opacity: calc(.75 + var(--beat) * var(--bs) * .25); }
+/* фон в такт басу: --beat (0..1) и --bs (сила из настроек) выставляет скрипт на обёртке пятен.
+   Переменные не наследуются, поэтому сами пятна не пересчитываются и их движение остаётся целиком на видеокарте */
+@property --beat { syntax: '<number>'; inherits: false; initial-value: 0; }
+@property --bs { syntax: '<number>'; inherits: false; initial-value: 0; }
+.orbs { position: absolute; inset: 0; transform-origin: 50% 45%; will-change: transform, opacity;
+  scale: calc(1 + var(--beat) * var(--bs) * .1); opacity: calc(.82 + var(--beat) * var(--bs) * .18);
+  transition: scale .08s linear, opacity .08s linear; }
+html[data-bg="flow"] .bg::before { opacity: .75; }
 
-/* уровень басов меняется 30 раз в секунду: короткий переход делает движение плавным */
-.bg .orb { transition: scale .08s linear, opacity .08s linear; }
+/* анимации на скрытых вкладках стоят на паузе: их всё равно не видно, а пересчёт стилей шёл бы каждый кадр */
+.page:not(.active), .page:not(.active) *, .page:not(.active) *::before, .page:not(.active) *::after { animation-play-state: paused !important; }
+
+/* остров без обложки: вместо пустого квадрата — луна, как в логотипе */
+.island:not(.has-art) .isl-cover { display: none; }
+.island:not(.has-art) .isl-logo { display: block; }
+.island.open:not(.has-art) .isl-logo { width: 40px; height: 40px; }
+.isl-logo { transition: width .55s var(--spring), height .55s var(--spring); }
+.isl-logo { position: relative; }
+.isl-logo::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #05060a; transform: translate(34%, -10%) scale(.78); }      /* полумесяц, как в логотипе */

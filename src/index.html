@@ -89,7 +89,7 @@
 </div>
 
 <div class="bg" aria-hidden="true">
-  <i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i>
+  <div class="orbs"><i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i></div>
   <i class="grain"></i>
 </div>
 
@@ -108,7 +108,7 @@
         <span class="isl-logo"></span>
         <img class="isl-cover" id="islCover" alt="">
         <div class="isl-text"><b id="islTitle">Ничего не играет</b><small id="islArtist"></small></div>
-        <span class="eq isl-eq"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="eq isl-eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
       </div>
       <div class="isl-more">
         <div class="isl-line" id="islLine"></div>
@@ -360,14 +360,18 @@
       <div class="cards one">
         <div class="card glass" data-s style="--i:1">
           <div class="card-t big">Оформление</div>
-          <div class="row"><div><div class="card-t">Тема программы</div><div class="card-d">Тёмная, светлая или как в настройках Windows</div></div>
+          <div class="row"><div><div class="card-t">Тема программы</div><div class="card-d">Тёмная, светлая или как в Windows</div></div>
             <div class="seg" id="themeSeg"><i class="seg-ind"></i><button class="active">Тёмная</button><button>Светлая</button><button>Как в системе</button></div></div>
-          <div class="row"><div><div class="card-t">Настоящий визуализатор</div><div class="card-d">Эквалайзер реагирует на реальный звук компьютера. Читается только громкость и спектр, звук не записывается и никуда не уходит</div></div><label class="sw"><input type="checkbox" id="setViz"><i></i></label></div>
-          <div class="row"><div><div class="card-t">Остров с треком</div><div class="card-d">Сверху на вкладке «Сейчас играет»: название, строка текста и кнопки. Раскрывается по клику</div></div><label class="sw"><input type="checkbox" id="setIsland"><i></i></label></div>
-          <div class="row"><div><div class="card-t">Анимированный фон</div><div class="card-d">Плавный свет и звёздное небо двигаются постоянно, «мягкий» — экономный вариант</div></div>
+          <div class="row"><div><div class="card-t">Анимированный фон</div><div class="card-d">«Мягкий» почти не нагружает компьютер</div></div>
             <div class="seg" id="bgSeg"><i class="seg-ind"></i><button class="active">Плавный</button><button>Мягкий</button><button>Звёзды</button><button>Выкл</button></div></div>
           <div class="row"><div><div class="card-t">Реакция фона на бас</div><div class="card-d" id="beatLabel">Фон мягко пульсирует вместе с басом</div></div><input type="range" class="range" id="setBeat" min="0" max="100" step="5" value="55"></div>
-          <div class="row"><div><div class="card-t">Цвет от обложки</div><div class="card-d">Подсветка текста и полоса времени на вкладке «Сейчас играет» берут цвет из обложки</div></div><label class="sw"><input type="checkbox" id="setCoverAcc"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Цвет от обложки</div><div class="card-d">Подсветка текста и полоса времени берут цвет обложки</div></div><label class="sw"><input type="checkbox" id="setCoverAcc"><i></i></label></div>
+        </div>
+
+        <div class="card glass" data-s style="--i:1">
+          <div class="card-t big">Сейчас играет</div>
+          <div class="row"><div><div class="card-t">Остров с треком</div><div class="card-d">Сверху окна: название, строка текста и кнопки, раскрывается по клику</div></div><label class="sw"><input type="checkbox" id="setIsland"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Настоящий визуализатор</div><div class="card-d">Столбики двигаются под звук компьютера. Звук не записывается</div></div><label class="sw"><input type="checkbox" id="setViz"><i></i></label></div>
         </div>
 
         <div class="card glass" data-s style="--i:1">

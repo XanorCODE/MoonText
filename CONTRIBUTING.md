@@ -4,9 +4,9 @@
 
 **Нашли ошибку, хотите новый дизайн оверлея или просто поправить опечатку? Будем рады любой помощи.**
 
-[![Issues](https://img.shields.io/github/issues/XanorCODE/moontext?style=flat-square&color=7c6cff&label=issues)](https://github.com/XanorCODE/moontext/issues)
-[![Pull requests](https://img.shields.io/github/issues-pr/XanorCODE/moontext?style=flat-square&color=7c6cff&label=pull%20requests)](https://github.com/XanorCODE/moontext/pulls)
-[![Лицензия](https://img.shields.io/github/license/XanorCODE/moontext?style=flat-square&color=7c6cff&label=лицензия)](LICENSE)
+[![Issues](https://img.shields.io/github/issues/XanorCODE/MoonText?style=flat-square&color=7c6cff&label=issues)](https://github.com/XanorCODE/MoonText/issues)
+[![Pull requests](https://img.shields.io/github/issues-pr/XanorCODE/MoonText?style=flat-square&color=7c6cff&label=pull%20requests)](https://github.com/XanorCODE/MoonText/pulls)
+[![Лицензия](https://img.shields.io/github/license/XanorCODE/MoonText?style=flat-square&color=7c6cff&label=лицензия)](LICENSE)
 
 [Сообщить об ошибке](#-сообщить-об-ошибке) &nbsp;·&nbsp; [Предложить идею](#-предложить-идею) &nbsp;·&nbsp; [Запустить проект](#-запуск-проекта) &nbsp;·&nbsp; [Отправить pull request](#-pull-request) &nbsp;·&nbsp; [Telegram](https://t.me/xanorcode)
 
@@ -16,7 +16,7 @@
 
 ## 🐞 Сообщить об ошибке
 
-Проще всего нажать **«Сообщить о проблеме»** в «Настройки → О программе»: версия, Windows, текущий трек, настройки и журнал скопируются в буфер и откроется страница нового issue, останется вставить данные (Ctrl+V). Или откройте [новый issue](https://github.com/XanorCODE/moontext/issues/new) сами и напишите:
+Проще всего нажать **«Сообщить о проблеме»** в «Настройки → О программе»: версия, Windows, текущий трек, настройки и журнал скопируются в буфер и откроется страница нового issue, останется вставить данные (Ctrl+V). Или откройте [новый issue](https://github.com/XanorCODE/MoonText/issues/new) сами и напишите:
 
 - **версию MoonText** (в «Настройки → О программе») и версию Windows;
 - **плеер**, в котором играет музыка (Spotify, Яндекс Музыка, браузер и другие);
@@ -36,8 +36,8 @@
 Нужны [Node.js](https://nodejs.org) 18 или новее и Windows 10/11: MoonText читает системный медиа-сеанс Windows.
 
 ```bash
-git clone https://github.com/XanorCODE/moontext.git
-cd moontext
+git clone https://github.com/XanorCODE/MoonText.git
+cd MoonText
 npm install
 npm start
 ```

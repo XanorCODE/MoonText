@@ -1071,7 +1071,7 @@ $('#strCopy').addEventListener('click', async () => {
 $('#ghBtn').addEventListener('click', () => { if (hasMoon) window.moon.openLink('github'); else window.open('https://github.com/XanorCODE', '_blank'); });
 $('#reportBtn').addEventListener('click', async () => {
   const b = $('#reportBtn');
-  if (hasMoon) await window.moon.reportProblem(); else window.open('https://github.com/XanorCODE/moontext/issues/new', '_blank');
+  if (hasMoon) await window.moon.reportProblem(); else window.open('https://github.com/XanorCODE/MoonText/issues/new', '_blank');
   b.textContent = hasMoon ? 'Скопировано ✓' : 'Открыто';
   setTimeout(() => { b.textContent = 'Сообщить о проблеме'; }, 2500);
 });

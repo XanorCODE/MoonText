@@ -6,12 +6,12 @@
 
 **Тексты песен по словам — в окне, на панели задач Windows 11 и в OBS**
 
-[![Версия](https://img.shields.io/github/v/release/XanorCODE/moontext?style=flat-square&color=7c6cff&label=версия)](https://github.com/XanorCODE/moontext/releases/latest)
-[![Скачиваний](https://img.shields.io/github/downloads/XanorCODE/moontext/total?style=flat-square&color=7c6cff&label=скачиваний)](https://github.com/XanorCODE/moontext/releases)
-[![Лицензия](https://img.shields.io/github/license/XanorCODE/moontext?style=flat-square&color=7c6cff&label=лицензия)](LICENSE)
+[![Версия](https://img.shields.io/github/v/release/XanorCODE/MoonText?style=flat-square&color=7c6cff&label=версия)](https://github.com/XanorCODE/MoonText/releases/latest)
+[![Скачиваний](https://img.shields.io/github/downloads/XanorCODE/MoonText/total?style=flat-square&color=7c6cff&label=скачиваний)](https://github.com/XanorCODE/MoonText/releases)
+[![Лицензия](https://img.shields.io/github/license/XanorCODE/MoonText?style=flat-square&color=7c6cff&label=лицензия)](LICENSE)
 ![Платформа](https://img.shields.io/badge/платформа-Windows-7c6cff?style=flat-square)
 
-[**⬇ Скачать**](https://github.com/XanorCODE/moontext/releases/latest) &nbsp;·&nbsp; [Возможности](#-возможности) &nbsp;·&nbsp; [Для стримеров](#-для-стримеров-obs) &nbsp;·&nbsp; [Вопросы](#-вопросы-и-ответы) &nbsp;·&nbsp; [Telegram](https://t.me/xanorcode)
+[**⬇ Скачать**](https://github.com/XanorCODE/MoonText/releases/latest) &nbsp;·&nbsp; [Возможности](#-возможности) &nbsp;·&nbsp; [Для стримеров](#-для-стримеров-obs) &nbsp;·&nbsp; [Вопросы](#-вопросы-и-ответы) &nbsp;·&nbsp; [Telegram](https://t.me/xanorcode)
 
 <br>
 
@@ -135,7 +135,7 @@ MoonText смотрит, что играет в системе (Spotify, Янд�
 
 ## ⬇ Установка
 
-1. Скачайте `MoonText-Setup-X.Y.Z.exe` из [последнего релиза](https://github.com/XanorCODE/moontext/releases/latest).
+1. Скачайте `MoonText-Setup-X.Y.Z.exe` из [последнего релиза](https://github.com/XanorCODE/MoonText/releases/latest).
 2. Запустите установщик: установка идёт в вашу папку пользователя, права администратора не нужны.
 3. Включите музыку в любом плеере.
 
@@ -280,4 +280,4 @@ npm run dist
 
 ---
 
-<sub>**English:** MoonText is a free Windows app that shows synced lyrics word by word, in its own window, in a pill next to the Windows 11 taskbar and as an OBS overlay. It reads the current track from Windows, fetches lyrics from [LRCLIB](https://lrclib.net) (with [Genius](https://genius.com) as a plain-text fallback) and updates itself from GitHub Releases. It also has a track island, an animated background that follows the loudness (with optional snow), a real audio visualizer and cover-based accent colors. Download the installer from the [latest release](https://github.com/XanorCODE/moontext/releases/latest). MIT licensed.</sub>
+<sub>**English:** MoonText is a free Windows app that shows synced lyrics word by word, in its own window, in a pill next to the Windows 11 taskbar and as an OBS overlay. It reads the current track from Windows, fetches lyrics from [LRCLIB](https://lrclib.net) (with [Genius](https://genius.com) as a plain-text fallback) and updates itself from GitHub Releases. It also has a track island, an animated background that follows the loudness (with optional snow), a real audio visualizer and cover-based accent colors. Download the installer from the [latest release](https://github.com/XanorCODE/MoonText/releases/latest). MIT licensed.</sub>

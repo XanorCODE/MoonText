@@ -598,7 +598,7 @@ function buildReport() {
 ipcMain.handle('diag:report', () => {
   const text = buildReport();
   clipboard.writeText(text);
-  shell.openExternal('https://github.com/XanorCODE/moontext/issues/new');
+  shell.openExternal('https://github.com/XanorCODE/MoonText/issues/new');
   return { ok: true, size: text.length };
 });
 ipcMain.handle('stream:open', () => {

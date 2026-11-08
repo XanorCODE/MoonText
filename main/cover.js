@@ -4,8 +4,8 @@ const cache = new Map();
 const clean = s => (s || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, '').replace(/\s*-\s*(remaster(ed)?|single|radio).*$/i, '').trim();
 
 /** Возвращает data:-URL обложки или null. doFetch — net.fetch из Electron. */
-async function findCover({ title, artist }, doFetch) {
-  const key = `${artist}|${title}`.toLowerCase();
+async function findCover({ title, artist }, doFetch, size = 600) {
+  const key = `${artist}|${title}|${size}`.toLowerCase();
   if (cache.has(key)) return cache.get(key);
 
   let result = null;
@@ -18,7 +18,7 @@ async function findCover({ title, artist }, doFetch) {
       const first = clean(artist).split(/[,&]/)[0].toLowerCase().split(/\s+/)[0];
       const hit = list.find(r => first && (r.artistName || '').toLowerCase().includes(first)) || (artist ? null : list[0]);
       if (hit?.artworkUrl100) {
-        const img = await doFetch(hit.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.'), { signal: AbortSignal.timeout(8000) });
+        const img = await doFetch(hit.artworkUrl100.replace(/\/\d+x\d+bb\./, `/${size}x${size}bb.`), { signal: AbortSignal.timeout(8000) });
         if (img.ok) {
           const buf = Buffer.from(await img.arrayBuffer());
           if (buf.length > 0 && buf.length < 3_000_000) result = `data:image/jpeg;base64,${buf.toString('base64')}`;

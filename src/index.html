@@ -20,6 +20,7 @@
   <symbol id="i-lyrics" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h13" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
   <symbol id="i-bar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="6.5" y="13.5" width="8" height="3" rx="1.5" fill="currentColor"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M5.6 18.4l1.7-1.7M16.7 7.3l1.7-1.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-look" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.3-.3-.4-.5-.8-.5-1.3 0-.9.8-1.7 1.8-1.7H17a3.5 3.5 0 0 0 3.5-3.5C20.5 6.9 16.7 3.5 12 3.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/><circle cx="7.8" cy="11.4" r="1.2" fill="currentColor"/><circle cx="10.3" cy="7.6" r="1.2" fill="currentColor"/><circle cx="14.7" cy="7.6" r="1.2" fill="currentColor"/></symbol>
   <symbol id="i-library" viewBox="0 0 24 24"><path d="M5 4v16M10 4v16M15.2 5.4l4.6 14.2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></symbol>
   <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M3 7h3.5c5 0 5 10 10 10H21m0 0-3-3m3 3-3 3M3 17h3.5c1.6 0 2.7-.9 3.6-2.1M21 7h-4.5c-1.6 0-2.7.9-3.6 2.1M21 7l-3-3m3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
   <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 11V9.5A2.5 2.5 0 0 1 6.5 7H20m0 0-3-3m3 3-3 3M20 13v1.5a2.5 2.5 0 0 1-2.5 2.5H4m0 0 3 3m-3-3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
@@ -90,6 +91,8 @@
 
 <div class="bg" aria-hidden="true">
   <div class="orbs"><i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i></div>
+  <i class="shoot s1"></i><i class="shoot s2"></i>
+  <div class="snowfall" aria-hidden="true"><i class="sf1"></i><i class="sf2"></i><i class="sf3"></i></div>
   <i class="grain"></i>
 </div>
 
@@ -129,6 +132,7 @@
       <button class="nav-btn" data-page="lib"><svg><use href="#i-library"/></svg><span>Библиотека</span></button>
       <button class="nav-btn" data-page="bar"><svg><use href="#i-bar"/></svg><span>Панель задач</span></button>
       <button class="nav-btn" data-page="stream"><svg><use href="#i-live"/></svg><span>Для стримеров</span></button>
+      <button class="nav-btn" data-page="look"><svg><use href="#i-look"/></svg><span>Кастомизация</span></button>
       <button class="nav-btn" data-page="set"><svg><use href="#i-gear"/></svg><span>Настройки</span></button>
     </nav>
 
@@ -250,6 +254,10 @@
       </div>
 
       <div class="cards">
+        <div class="card wide glass pill-main" data-s style="--i:2">
+          <div class="row"><div><div class="card-t">Плашка на панели задач</div><div class="card-d" id="pillOnLabel">Слова песни рядом с панелью Windows 11, пока играет музыка</div></div><label class="sw"><input type="checkbox" id="setPill" checked><i></i></label></div>
+        </div>
+
         <div class="card glass" data-s style="--i:2">
           <div class="card-t">Вид плашки</div>
           <div class="seg wide" id="styleSeg">
@@ -283,6 +291,7 @@
           <div class="row"><div><div class="card-t">Прозрачность фона</div></div><input type="range" class="range" id="setPa" min="30" max="100" value="94"></div>
           <div class="row"><div><div class="card-t">Максимальная ширина</div><div class="card-d">Длинные слова и названия не станут шире</div></div><input type="range" class="range" id="setMaxW" min="200" max="420" value="320"></div>
           <div class="row"><div><div class="card-t">Экономный режим</div><div class="card-d">Без плавных переходов: слова меняются сразу, процессор почти не нагружается</div></div><label class="sw"><input type="checkbox" id="setEco"><i></i></label></div>
+          <div class="row"><div><div class="card-t">60 кадров в секунду</div><div class="card-d">Слова и заливка обновляются 60 раз в секунду, движение ровнее. Процессор нагружается сильнее, в экономном режиме не работает</div></div><label class="sw"><input type="checkbox" id="set60"><i></i></label></div>
           <div class="row"><div><div class="card-t">Показывать луну</div></div><label class="sw"><input type="checkbox" id="setMoon" checked><i></i></label></div>
           <div class="row"><div><div class="card-t">Форма</div></div>
             <div class="seg" id="roundSeg"><i class="seg-ind"></i><button class="active">Круглая</button><button>Мягкая</button></div></div>
@@ -350,11 +359,11 @@
       </div>
     </section>
 
-    <!-- ========== НАСТРОЙКИ ========== -->
-    <section class="page" id="p-set">
+    <!-- ========== КАСТОМИЗАЦИЯ ========== -->
+    <section class="page" id="p-look">
       <header class="page-head" data-s style="--i:0">
-        <h2>Настройки</h2>
-        <p>Тема, автозапуск, источники музыки и обновления</p>
+        <h2>Кастомизация</h2>
+        <p>Тема, фон и внешний вид вкладки «Сейчас играет»</p>
       </header>
 
       <div class="cards one">
@@ -364,21 +373,32 @@
             <div class="seg" id="themeSeg"><i class="seg-ind"></i><button class="active">Тёмная</button><button>Светлая</button><button>Как в системе</button></div></div>
           <div class="row"><div><div class="card-t">Анимированный фон</div><div class="card-d">«Мягкий» почти не нагружает компьютер</div></div>
             <div class="seg" id="bgSeg"><i class="seg-ind"></i><button class="active">Плавный</button><button>Мягкий</button><button>Звёзды</button><button>Выкл</button></div></div>
-          <div class="row"><div><div class="card-t">Реакция фона на бас</div><div class="card-d" id="beatLabel">Фон мягко пульсирует вместе с басом</div></div><input type="range" class="range" id="setBeat" min="0" max="100" step="5" value="55"></div>
-          <div class="row"><div><div class="card-t">Цвет от обложки</div><div class="card-d">Подсветка текста и полоса времени берут цвет обложки</div></div><label class="sw"><input type="checkbox" id="setCoverAcc"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Снег</div><div class="card-d">Лёгкий снегопад поверх любого фона</div></div><label class="sw"><input type="checkbox" id="setSnow"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Реакция фона на громкость</div><div class="card-d" id="beatLabel">Фон дышит с силой музыки</div></div><input type="range" class="range" id="setBeat" min="0" max="100" step="5" value="55"></div>
         </div>
 
-        <div class="card glass" data-s style="--i:1">
+        <div class="card glass" data-s style="--i:2">
           <div class="card-t big">Сейчас играет</div>
+          <div class="row"><div><div class="card-t">Анимация слов</div><div class="card-d">Пословная подсветка текста</div></div><label class="sw"><input type="checkbox" id="setWord" checked><i></i></label></div>
+          <div class="row"><div><div class="card-t">Цвет от обложки</div><div class="card-d">Подсветка текста и полоса времени берут цвет обложки</div></div><label class="sw"><input type="checkbox" id="setCoverAcc"><i></i></label></div>
+          <div class="row"><div><div class="card-t">Только качественные обложки</div><div class="card-d">Мелкая или не квадратная обложка из плеера заменяется чёткой из iTunes; если в сети такой нет, остаётся обложка из плеера</div></div><label class="sw"><input type="checkbox" id="setHqCover"><i></i></label></div>
           <div class="row"><div><div class="card-t">Остров с треком</div><div class="card-d">Сверху окна: название, строка текста и кнопки, раскрывается по клику</div></div><label class="sw"><input type="checkbox" id="setIsland"><i></i></label></div>
           <div class="row"><div><div class="card-t">Настоящий визуализатор</div><div class="card-d">Столбики двигаются под звук компьютера. Звук не записывается</div></div><label class="sw"><input type="checkbox" id="setViz"><i></i></label></div>
         </div>
+      </div>
+    </section>
 
+    <!-- ========== НАСТРОЙКИ ========== -->
+    <section class="page" id="p-set">
+      <header class="page-head" data-s style="--i:0">
+        <h2>Настройки</h2>
+        <p>Автозапуск, источники музыки, тексты и обновления</p>
+      </header>
+
+      <div class="cards one">
         <div class="card glass" data-s style="--i:1">
           <div class="card-t big">Общие</div>
           <div class="row"><div><div class="card-t">Запускать вместе с Windows</div><div class="card-d">Автозапуск при входе в систему</div></div><label class="sw"><input type="checkbox" id="setAutostart"><i></i></label></div>
-          <div class="row"><div><div class="card-t">Показывать плашку на панели задач</div></div><label class="sw"><input type="checkbox" id="setPill" checked><i></i></label></div>
-          <div class="row"><div><div class="card-t">Анимация слов</div><div class="card-d">Пословная подсветка текста</div></div><label class="sw"><input type="checkbox" id="setWord" checked><i></i></label></div>
           <div class="row"><div><div class="card-t">Скачивать обновления автоматически</div><div class="card-d">Если выключить, MoonText только сообщит о новой версии, а скачивать её вы будете сами</div></div><label class="sw"><input type="checkbox" id="setAutoUpd" checked><i></i></label></div>
         </div>
 

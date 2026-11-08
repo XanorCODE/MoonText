@@ -45,6 +45,11 @@ class MediaWatcher extends EventEmitter {
     let extra = {};
     try { extra = JSON.parse(process.env.MOONTEXT_FAKE_TRACK || '{}'); } catch { /* не JSON — игнорируем */ }
     this.emit('message', { type: 'sources', apps: ['Spotify.exe', 'chrome.exe'] });
+    if (process.env.MOONTEXT_FAKE_COVER) {            // path to an image: sent as the cover from the player
+      setTimeout(() => {
+        try { this.emit('message', { type: 'cover', title: extra.title || 'Bohemian Rhapsody', artist: extra.artist || 'Queen', mime: 'image/png', data: require('fs').readFileSync(process.env.MOONTEXT_FAKE_COVER).toString('base64') }); } catch { /* no file */ }
+      }, 1500);
+    }
     this.timer = setInterval(() => {
       const app = extra.app || 'Spotify.exe';
       if ((this.ignored || []).includes(app.toLowerCase())) return this.emit('message', { type: 'none' });

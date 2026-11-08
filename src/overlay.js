@@ -30,7 +30,7 @@ function onMsg(m) {
       view.setTrack(track, m.keepLyrics);
       break;
     case 'state': clock.dur = m.state.dur; clock.update(m.state); break;
-    case 'cover': view.setCover(m.cover); break;
+    case 'cover': if (m.cover) view.setCover(m.cover); else view.clearCover(); break;
     case 'lyrics': applyLyrics(m); break;
     case 'shift': shift = m.shift || 0; break;
     case 'none': track = null; shift = 0; view.setTrack(null); view.clearCover(); break;

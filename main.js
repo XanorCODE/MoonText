@@ -39,16 +39,19 @@ const DEFAULTS = {
   pillMoon: true,
   pillRound: true,
   pillWave: false,   // волна: слова на плашке качаются по очереди
+  pill60: true,      // the pill is updated 60 times a second instead of 25 (smoother words and fill, costs more CPU)
   pillEco: false,    // экономный режим: плашка без плавных переходов (почти не грузит процессор)
   pillMaxW: 320,
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
   pillPos: 'left',   // left | center | right
   pillOffset: 0,     // px от края
-  bgBeat: 55,           // how strongly the background reacts to beats, 0 = off
+  bgBeat: 55,           // how strongly the background reacts to the loudness, 0 = off
   vizReal: true,        // equalizer reacts to the real sound of the computer (loopback capture, nothing is recorded)
   island: true,         // «остров» с треком сверху на вкладке «Сейчас играет»
   bgStyle: 'flow',      // фон окна: flow | soft | stars | off
+  snow: true,           // falling snow over the background: a decoration, switched on its own
   coverAccent: true,    // подсветка на вкладке «Сейчас играет» берёт цвет из обложки
+  hqCovers: true,       // only sharp square covers: weak ones from the player are replaced by iTunes art, or dropped
 };
 
 let settings = { ...DEFAULTS };
@@ -70,7 +73,7 @@ const RANGES = {
   offset: [-2000, 2000], speed: [0, 100], pillOpacity: [30, 100], pillMaxW: [200, 420], pillOffset: [0, 600],
   streamPort: [1024, 65535], streamSize: [24, 120], streamBg: [0, 100], bgBeat: [0, 100],
 };
-const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound', 'coverAccent', 'island', 'vizReal'];
+const BOOLS = ['autoDownloadUpdates', 'pillWave', 'pill60', 'pillEco', 'autostart', 'showPill', 'wordAnim', 'adaptive', 'hideFullscreen', 'streamEnabled', 'streamWords', 'streamCover', 'streamMeta', 'pillMoon', 'pillRound', 'coverAccent', 'island', 'vizReal', 'hqCovers', 'snow'];
 const COLORS = ['pillAccent', 'streamAccent'];
 
 function cleanPatch(src) {
@@ -116,7 +119,7 @@ app.on('child-process-gone', (_, d) => {
 });
 
 // последнее известное состояние — отдаём новым окнам
-const snap = { track: null, state: null, cover: null, accent: null, lyrics: null, none: true };
+const snap = { track: null, state: null, cover: null, accent: null, lyrics: null, none: true, native: null, nativeSharp: false, itunes: null, itunesTried: false, itunesDone: false };
 
 // цвет обложки нужен только вкладке «Сейчас играет»
 function setCoverAccent(cover) {
@@ -407,17 +410,56 @@ async function loadLyrics(track, attempt = 1) {
   }
 }
 
+/** A cover is sharp when it is square and at least 500 px on the short side. */
+function coverSharp(url) {
+  try {
+    const { width, height } = nativeImage.createFromDataURL(url).getSize();
+    return Math.min(width, height) >= 500 && Math.abs(width / height - 1) <= 0.1;
+  } catch { return false; }
+}
+
+function showCover(url) {
+  if (snap.cover === url) return;
+  snap.cover = url;
+  broadcast({ type: 'cover', cover: url });
+  setCoverAccent(url);
+}
+
+/** iTunes art for the track; force replaces the cover on screen. Nothing found online: the cover from Windows is used, however weak. */
+async function findItunesCover(track, force) {
+  if (snap.itunesTried) {
+    if (snap.itunesDone) pickFound(force);
+    return;
+  }
+  snap.itunesTried = true;
+  const art = await findCover(track, (u, o) => net.fetch(u, o), settings.hqCovers ? 1000 : 600);
+  if (snap.track?.key !== track.key) return;
+  snap.itunes = art; snap.itunesDone = true;
+  pickFound(force);
+}
+function pickFound(force) {
+  const art = snap.itunes || snap.native;
+  if (art && (!snap.cover || force)) showCover(art);
+}
+
 /** Если Windows не отдал обложку за пару секунд — ищем в iTunes. */
 function coverFallback(track) {
-  setTimeout(async () => {
+  setTimeout(() => {
     if (snap.track?.key !== track.key || snap.cover) return;
-    const art = await findCover(track, (u, o) => net.fetch(u, o));
-    if (art && snap.track?.key === track.key && !snap.cover) {
-      snap.cover = art;
-      broadcast({ type: 'cover', cover: art });
-      setCoverAccent(art);
-    }
+    findItunesCover(track, false);
   }, 3500);
+}
+
+/** The setting changed while a track plays: pick the cover again. */
+function reapplyCover() {
+  const track = snap.track;
+  if (!track?.title) return;
+  snap.itunes = null; snap.itunesTried = false; snap.itunesDone = false;
+  if (!settings.hqCovers) {
+    if (snap.native) showCover(snap.native);
+    else if (!snap.cover) findItunesCover(track, false);
+  } else if (snap.native && snap.nativeSharp) showCover(snap.native);
+  else findItunesCover(track, true);
 }
 
 let seekGuard = null;     // { sec, at, until }: куда мы только что перемотали
@@ -436,7 +478,7 @@ media.on('message', m => {
   }
   if (m.type === 'none') {
     if (!snap.none) {
-      Object.assign(snap, { track: null, state: null, cover: null, accent: null, lyrics: null, none: true });
+      Object.assign(snap, { track: null, state: null, cover: null, accent: null, lyrics: null, none: true, native: null, nativeSharp: false, itunes: null, itunesTried: false, itunesDone: false });
       lyricsToken++;
       broadcast({ type: 'none' });
     }
@@ -447,7 +489,7 @@ media.on('message', m => {
     const key = `${m.artist}|${m.title}`;
     if (!snap.track || snap.track.key !== key) {
       snap.track = { key, title: m.title, artist: m.artist, album: m.album, app: m.app, dur: m.dur };
-      snap.cover = null;
+      snap.cover = null; snap.native = null; snap.nativeSharp = false; snap.itunes = null; snap.itunesTried = false; snap.itunesDone = false;
       setCoverAccent(null);
       snap.lyrics = null;
       seekGuard = null;
@@ -473,9 +515,10 @@ media.on('message', m => {
   }
   if (m.type === 'cover') {
     if (snap.track && snap.track.title === m.title) {
-      snap.cover = `data:${sniffMime(m.data)};base64,${m.data}`;
-      broadcast({ type: 'cover', cover: snap.cover });
-      setCoverAccent(snap.cover);
+      snap.native = `data:${sniffMime(m.data)};base64,${m.data}`;
+      snap.nativeSharp = coverSharp(snap.native);
+      if (!settings.hqCovers || snap.nativeSharp) showCover(snap.native);
+      else findItunesCover(snap.track, false);                   // a weak cover stays hidden until the iTunes one arrives
     }
   }
 });
@@ -623,6 +666,7 @@ function applySettingsPatch(rawPatch) {
   if ('ignoredApps' in patch) media.setIgnored(settings.ignoredApps);
   if ('appTheme' in patch) applyChrome();
   if ('coverAccent' in patch) { snap.accent = null; setCoverAccent(snap.cover); }
+  if ('hqCovers' in patch) reapplyCover();
   if ('streamEnabled' in patch || 'streamPort' in patch) syncStream();
   broadcast({ type: 'settings', settings });
   return settings;

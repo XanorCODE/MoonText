@@ -10,7 +10,7 @@ const pill = document.getElementById('pill');
 const trackEl = document.getElementById('track');
 const moonEl = pill.querySelector('.moon');
 
-let settings = { offset: 0, pillSize: 1, adaptive: true, speed: 60, showPill: true, pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillAnim: 'run', pillWave: false, pillEco: false };
+let settings = { offset: 0, pillSize: 1, adaptive: true, speed: 60, showPill: true, pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillAnim: 'run', pillWave: false, pillEco: false, pill60: true };
 let track = null, shift = 0, lines = [], lyricsState = 'none';       // none | loading | ok | notfound | plain
 const clock = new E.Clock();
 
@@ -174,9 +174,21 @@ function frame() {
  */
 function schedule() {
   if (mode === 'lyrics') {
-    if (settings.pillAnim === 'fill') requestAnimationFrame(frame); else setTimeout(frame, 40);
-  } else if (mode === 'title' && lyricsState === 'ok') setTimeout(frame, 100);   // ждём начала первой строки
-  else setTimeout(frame, 250);
+    if (settings.pillAnim === 'fill' || (settings.pill60 && !settings.pillEco)) tick60();     // the fill moves every frame, but never faster than 60 a second
+    else { tickAt = 0; setTimeout(frame, 40); }
+  } else { tickAt = 0; if (mode === 'title' && lyricsState === 'ok') setTimeout(frame, 100); else setTimeout(frame, 250); }   // ждём начала первой строки
+}
+
+/* 60 frames a second whatever the screen refresh rate is: frames of a 144-240 Hz screen are skipped by an accumulator */
+let tickAt = 0, tickAcc = 0;
+function tick60() {
+  requestAnimationFrame(now => {
+    tickAcc += tickAt ? Math.min(now - tickAt, 100) : 16.7;
+    tickAt = now;
+    if (tickAcc < 16.2) return tick60();
+    tickAcc = Math.min(tickAcc - 16.667, 16.667);
+    frame();
+  });
 }
 
 function onMsg(m) {

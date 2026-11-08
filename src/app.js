@@ -13,7 +13,7 @@ let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoD
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false,
-  coverAccent: true, island: true, vizReal: true, bgStyle: 'flow', bgBeat: 55 };
+  coverAccent: true, island: true, vizReal: true, hqCovers: true, snow: true, bgStyle: 'flow', bgBeat: 55 };
 let track = null, shift = 0, covAccent = null;
 let lines = [];
 let dur = 0;
@@ -183,6 +183,10 @@ function setIdle() {
   setPlayIcon(false);
 }
 
+function clearCover() {
+  $('#coverImg').removeAttribute('src'); $('.cover').classList.remove('has-art');
+  $('#islCover').removeAttribute('src'); island.classList.remove('has-art');
+}
 function setCover(src) {
   $('#coverImg').src = src;
   $('.cover').classList.add('has-art');
@@ -270,7 +274,7 @@ function onMsg(m) {
       if (m.state.dur) { dur = m.state.dur; $('#tDur').textContent = fmt(dur); }
       setPlayIcon(m.state.status === 'Playing');
       break;
-    case 'cover': setCover(m.cover); bigView.setCover(m.cover); break;
+    case 'cover': if (m.cover) { setCover(m.cover); bigView.setCover(m.cover); } else { clearCover(); bigView.clearCover(); } break;
     case 'sources': seenSources = m.apps || []; renderSources(); break;
     case 'stream': renderStream(m.status); break;
     case 'lyrics': onLyrics(m); break;
@@ -522,21 +526,43 @@ $('#shiftMinus').addEventListener('click', () => nudgeShift(-100));
 $('#shiftPlus').addEventListener('click', () => nudgeShift(100));
 $('#shiftVal').addEventListener('click', () => nudgeShift(null));
 
+/* the lyrics toolbar hides when the mouse rests; moving it over the lyrics, or focusing the toolbar, brings it back */
+const lyrWrap = $('.lyrics-wrap'), lyrTools = $('#lyrTools');
+let calmTimer = 0, calmAt = 0;
+function lyrToolsWake() {
+  const now = performance.now();
+  if (now - calmAt < 200 && !lyrWrap.classList.contains('calm')) return;       // mousemove fires very often
+  calmAt = now;
+  lyrWrap.classList.remove('calm');
+  clearTimeout(calmTimer);
+  calmTimer = setTimeout(() => {
+    if (lyrTools.matches(':hover') || lyrTools.querySelector(':focus-visible')) return lyrToolsWake();
+    lyrWrap.classList.add('calm');
+  }, 2500);
+}
+lyrWrap.addEventListener('mousemove', lyrToolsWake);
+lyrTools.addEventListener('focusin', lyrToolsWake);
+lyrToolsWake();
+
 /* настоящий визуализатор: звук системы (loopback) -> спектр -> столбики всех эквалайзеров */
 let viz = null, vizFail = false, vizBusy = false;
-/* бас: уровень низких частот относительно недавнего максимума (автоусиление); фон следует за ним плавно, без поиска ритма */
+/* громкость: средний уровень спектра относительно недавнего максимума (автоусиление); фон следует за ним плавно, без поиска ритма */
 const beat = { peak: 0.2, low: 1, pulse: 0 };
 const bgEl = $('.orbs');
-const beatLabel = v => v === 0 ? 'Выключено' : `Фон мягко пульсирует вместе с басом: ${v}%`;
+const beatLabel = v => v === 0 ? 'Выключено' : `Фон дышит с силой музыки: ${v}%`;
 function beatStrength() { return settings.bgStyle === 'off' ? 0 : Math.max(0, Math.min(100, +settings.bgBeat >= 0 ? +settings.bgBeat : 55)) / 100; }
 function beatStep(d) {
-  const bass = (d[1] * 1.2 + d[2] * 1.2 + d[3] + d[4] * 0.8 + d[5] * 0.5) / 4.7 / 255;      // roughly 45–280 Hz
+  // loudness: the mean level of the spectrum bins from about 47 Hz to 6.5 kHz (47 Hz per bin at 48 kHz)
+  const hi = Math.min(140, d.length);
+  let sum = 0;
+  for (let i = 1; i < hi; i++) sum += d[i];
+  const lvl = sum / (hi - 1) / 255;
   // the byte spectrum is logarithmic, so swings look small: stretch them between the recent floor and the recent ceiling
-  beat.peak = Math.max(bass, beat.peak * 0.996, 0.2);
-  beat.low = Math.min(bass, beat.low + 0.0015);
-  const rel = Math.min(1, Math.max(0, (bass - beat.low) / Math.max(beat.peak - beat.low, 0.15)));
-  const abs = Math.min(1, Math.max(0, (bass - 0.35) / 0.45));                               // plain loudness of the low end keeps a gentle glow
-  const target = bass < 0.07 ? 0 : Math.pow(rel, 1.2) * 0.7 + abs * 0.3;
+  beat.peak = Math.max(lvl, beat.peak * 0.996, 0.12);
+  beat.low = Math.min(lvl, beat.low + 0.0015);
+  const rel = Math.min(1, Math.max(0, (lvl - beat.low) / Math.max(beat.peak - beat.low, 0.1)));
+  const abs = Math.min(1, Math.max(0, (lvl - 0.12) / 0.3));                                 // the plain level keeps a gentle glow
+  const target = lvl < 0.04 ? 0 : Math.pow(rel, 1.2) * 0.7 + abs * 0.3;
   beat.pulse += (target - beat.pulse) * (target > beat.pulse ? 0.65 : 0.16);              // fast attack, softer release
   if (beat.pulse < 0.004) beat.pulse = 0;
 }
@@ -558,9 +584,12 @@ async function vizStart() {
     an.fftSize = 1024; an.smoothingTimeConstant = 0.5;
     ctx.createMediaStreamSource(stream).connect(an);          // not connected to the output: nothing is played back
     await ctx.resume();
-    viz = { ctx, an, stream, data: new Uint8Array(an.frequencyBinCount) };
+    viz = { ctx, an, stream, data: new Uint8Array(an.frequencyBinCount), quietAt: 0 };
+    // the capture dies when the output device changes or the PC sleeps: restart it instead of staying frozen
+    stream.getAudioTracks()[0].addEventListener('ended', () => { if (viz && viz.stream === stream) vizRestart(); });
+    ctx.addEventListener('statechange', () => { if (viz && viz.ctx === ctx && vizShouldRun() && (ctx.state === 'suspended' || ctx.state === 'interrupted')) ctx.resume().catch(() => {}); });
     document.documentElement.classList.add('viz-on');
-    vizLoop();
+    vizLoop(viz);
   } catch (e) {
     // the capture may need a user gesture: try again on the first click or key press
     if (e && e.name === 'NotAllowedError') {
@@ -593,7 +622,16 @@ function vizWake(on) {
     beat.pulse = 0; beatApply();
   }, 1500);
 }
-document.addEventListener('visibilitychange', () => vizWake(!document.hidden && playingUi));
+document.addEventListener('visibilitychange', () => vizWake(vizShouldRun()));
+const vizShouldRun = () => !document.hidden && !!playingUi;
+/* restarts are spaced out (15 s, then longer) so a really silent system does not make the capture restart all the time */
+let vizRestartAt = 0, vizRestartGap = 15000;
+function vizRestart() {
+  const now = Date.now();
+  if (now - vizRestartAt < vizRestartGap) return;
+  vizRestartAt = now; vizRestartGap = Math.min(vizRestartGap * 2, 120000);
+  vizStop(); vizStart();
+}
 
 /* equalizers are drawn on a tiny canvas: round caps stay round, nothing is restyled, and the island gets a soft symmetric wave */
 function eqSetup(eq, frame) {
@@ -621,14 +659,23 @@ function eqDraw(eq) {
   g.globalAlpha = 1;
 }
 let vizFrame = 0;
-function vizLoop() {
-  if (!viz) return;
+function vizLoop(v) {
+  if (!viz || viz !== v) return;                    // a restarted capture has its own loop
   // about 30 frames a second in front, 10 behind other windows; a timer, so 144-240 Hz screens do not wake it more often
-  setTimeout(vizLoop, document.hasFocus() ? 33 : 100);
-  if (document.hidden || viz.ctx.state !== 'running') return;
+  setTimeout(() => vizLoop(v), document.hasFocus() ? 33 : 100);
+  if (document.hidden) return;
+  if (viz.ctx.state !== 'running') { if (playingUi && viz.ctx.state !== 'closed') viz.ctx.resume().catch(() => {}); return; }
   vizFrame++;
   viz.an.getByteFrequencyData(viz.data);
   const d = viz.data, n = d.length;
+  // music is playing but the spectrum is flat for a long time: the capture has probably stalled
+  let any = 0;
+  for (let i = 0; i < 64; i++) any |= d[i];
+  if (any) { viz.quietAt = 0; vizRestartGap = 15000; }
+  else if (playingUi) {
+    if (!viz.quietAt) viz.quietAt = Date.now();
+    else if (Date.now() - viz.quietAt > 12000) { viz.quietAt = Date.now(); vizRestart(); }
+  }
   if (document.hasFocus() && beatStrength() > 0) { beatStep(d); beatApply(); }
   else if (beat.pulse) { beat.pulse = 0; beatApply(); }
   const eqs = $$('.eq').filter(eq => eq.offsetParent && (curPage === 'now' || !eq.closest('.island')));
@@ -688,6 +735,7 @@ function applySettings(s, local) {
   setThemeSeg(Math.max(0, THEMES.indexOf(settings.appTheme)));
   const bg = BG.includes(settings.bgStyle) ? settings.bgStyle : 'flow';
   document.documentElement.dataset.bg = bg;
+  document.documentElement.dataset.snow = settings.snow !== false ? '1' : '0';
   document.documentElement.dataset.island = settings.island === false ? '0' : '1';
   bgEl.style.setProperty('--bs', beatStrength().toFixed(2));
   if (settings.vizReal === false) vizStop(); else if (playingUi) vizStart();
@@ -705,6 +753,8 @@ function applySettings(s, local) {
   if (pill.dataset.wave !== (settings.pillWave ? '1' : '0')) pillLine = -1;     // пересобрать строку: волна раскладывает слова на буквы
   pill.dataset.wave = settings.pillWave ? '1' : '0';
   pill.dataset.mode = 'lyrics';
+  $('#p-bar').classList.toggle('off', !settings.showPill);
+  $('#pillOnLabel').textContent = settings.showPill ? 'Слова песни рядом с панелью Windows 11, пока играет музыка' : 'Плашка скрыта. Включите, и слова появятся рядом с панелью Windows 11';
   $$('#animGrid .anim-chip').forEach(b => b.classList.toggle('on', b.dataset.a === (settings.pillAnim || 'run')));
   setRoundSeg(settings.pillRound ? 0 : 1);
   setPosSeg(Math.max(0, POS.indexOf(settings.pillPos)));
@@ -720,9 +770,12 @@ function applySettings(s, local) {
     $('#setMoon').checked = settings.pillMoon;
     $('#setEco').checked = settings.pillEco;
     $('#setWave').checked = settings.pillWave;
+    $('#set60').checked = !!settings.pill60;
     $('#setFs').checked = settings.hideFullscreen;
     $('#setAutoUpd').checked = settings.autoDownloadUpdates !== false;
     $('#setCoverAcc').checked = !!settings.coverAccent;
+    $('#setHqCover').checked = !!settings.hqCovers;
+    $('#setSnow').checked = settings.snow !== false;
     $('#setIsland').checked = settings.island !== false;
     $('#setViz').checked = settings.vizReal !== false;
     $('#setBeat').value = beatStrength() * 100;
@@ -752,7 +805,7 @@ $('#setSpeed').addEventListener('change', e => save({ speed: +e.target.value }))
 /* сброс оформления плашки (значения совпадают с DEFAULTS в main.js) */
 const PILL_DEFAULTS = {
   pillSize: 1, adaptive: true, speed: 60,
-  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
+  pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false, pill60: true,
 };
 $('#pillReset').addEventListener('click', () => {
   save(PILL_DEFAULTS);
@@ -764,6 +817,8 @@ $('#setMaxW').addEventListener('input', e => save({ pillMaxW: +e.target.value })
 $('#setFs').addEventListener('change', e => save({ hideFullscreen: e.target.checked }));
 $('#setAutoUpd').addEventListener('change', e => save({ autoDownloadUpdates: e.target.checked }));
 $('#setCoverAcc').addEventListener('change', e => save({ coverAccent: e.target.checked }));
+$('#setHqCover').addEventListener('change', e => save({ hqCovers: e.target.checked }));
+$('#setSnow').addEventListener('change', e => save({ snow: e.target.checked }));
 $('#setIsland').addEventListener('change', e => save({ island: e.target.checked }));
 $('#setViz').addEventListener('change', e => save({ vizReal: e.target.checked }));
 $('#setBeat').addEventListener('input', e => { $('#beatLabel').textContent = beatLabel(+e.target.value); });
@@ -801,6 +856,7 @@ function renderSources() {
   $('#srcEmpty').style.display = ids.length ? 'none' : '';
 }
 $('#setWave').addEventListener('change', e => save({ pillWave: e.target.checked }));
+$('#set60').addEventListener('change', e => save({ pill60: e.target.checked }));
 $('#setEco').addEventListener('change', e => save({ pillEco: e.target.checked }));
 $('#setMoon').addEventListener('change', e => save({ pillMoon: e.target.checked }));
 $('#setEdge').addEventListener('change', e => save({ pillOffset: +e.target.value }));

@@ -108,5 +108,30 @@
     els.forEach((e, i) => { if (e) e.style.paddingInline = Math.max(0, w[i] * k - 5).toFixed(1) + 'px'; });
   };
 
+  /**
+   * An easing curve as a staircase with `rate` steps a second (CSS linear() with flat segments), 60 by default.
+   * The motion follows the same curve, but a 144-240 Hz screen redraws 60 times a second instead of on every refresh.
+   */
+  E.EASE = { spring: [.34, 1.4, .64, 1], smooth: [.22, 1, .36, 1], ease: [.25, .1, .25, 1], inOut: [.42, 0, .58, 1] };
+  E.stairs = function ([x1, y1, x2, y2], seconds, rate = 60) {
+    const n = Math.max(1, Math.round(seconds * rate));
+    const at = x => {                                     // cubic-bezier value for the progress x
+      let lo = 0, hi = 1;
+      for (let i = 0; i < 22; i++) {
+        const t = (lo + hi) / 2, u = 1 - t;
+        if (3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t < x) lo = t; else hi = t;
+      }
+      const t = (lo + hi) / 2, u = 1 - t;
+      return 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t;
+    };
+    const stops = [];
+    for (let k = 1; k <= n; k++) stops.push(`${+at(k / n).toFixed(4)} ${+((k - 1) / n * 100).toFixed(3)}% ${+(k / n * 100).toFixed(3)}%`);
+    return `linear(${stops.join(', ')})`;
+  };
+  /** Sets CSS variables with staircase easings on an element: { name: [curve, seconds, rate] }. */
+  E.stairVars = function (el, map) {
+    for (const k in map) el.style.setProperty(k, E.stairs(E.EASE[map[k][0]], map[k][1], map[k][2]));
+  };
+
   g.MoonEngine = E;
 })(window);

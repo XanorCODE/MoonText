@@ -1,4 +1,4 @@
-const { app, nativeTheme, BrowserWindow, ipcMain, screen, net, Tray, Menu, nativeImage, clipboard, shell } = require('electron');
+const { app, nativeTheme, BrowserWindow, ipcMain, screen, net, Tray, Menu, nativeImage, clipboard, shell, session, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
@@ -6,7 +6,6 @@ const lrclib = require('./main/lrclib');
 const { findCover, sniffMime } = require('./main/cover');
 const { StreamServer } = require('./main/stream');
 const { MediaWatcher } = require('./main/media');
-const { session, desktopCapturer } = require('electron');
 const { coverAccent } = require('./main/accent');
 
 const DEFAULTS = {
@@ -119,7 +118,10 @@ app.on('child-process-gone', (_, d) => {
 });
 
 // последнее известное состояние — отдаём новым окнам
-const snap = { track: null, state: null, cover: null, accent: null, lyrics: null, none: true, native: null, nativeSharp: false, itunes: null, itunesTried: false, itunesDone: false };
+const snap = { track: null, state: null, cover: null, accent: null, lyrics: null, none: true };
+// cover candidates for the current track: the one from the player and the one from iTunes
+const art = { native: null, sharp: false, itunes: null, tried: false, done: false };
+const resetArt = () => Object.assign(art, { native: null, sharp: false, itunes: null, tried: false, done: false });
 
 // цвет обложки нужен только вкладке «Сейчас играет»
 function setCoverAccent(cover) {
@@ -156,8 +158,7 @@ function plog(msg) {
   try {
     const f = path.join(app.getPath('userData'), 'pill.log');
     if (fs.existsSync(f) && fs.statSync(f).size > 100000) fs.writeFileSync(f, '');
-    fs.appendFileSync(f, `${new Date().toISOString()} ${msg}
-`);
+    fs.appendFileSync(f, `${new Date().toISOString()} ${msg}\n`);
   } catch { /* журнал необязателен */ }
 }
 
@@ -171,17 +172,18 @@ async function syncStream() {
 }
 
 /* ---------- рассылка ---------- */
+// the pill and the OBS overlay get only what they draw: covers, update news and source lists are not copied to the pill
+const PILL_MSGS = new Set(['settings', 'track', 'state', 'lyrics', 'shift', 'none']);
+const OVERLAY_MSGS = new Set([...PILL_MSGS, 'cover']);
 function broadcast(msg) {
   if (process.env.MOONTEXT_DEBUG && msg.type !== 'state') {
     const brief = { ...msg }; if (brief.cover) brief.cover = `<${brief.cover.length} chars>`; if (brief.lines) brief.lines = `<${brief.lines.length} lines>`; if (brief.plain) brief.plain = `<${brief.plain.length}>`;
     console.log('[moontext]', JSON.stringify(brief).slice(0, 300));
   }
-  for (const w of [mainWin, pillWin]) {
-    if (!w || w.isDestroyed()) continue;
-    if (msg.type === 'state' && w === mainWin && (!w.isVisible() || w.isMinimized())) continue;     // hidden window gets the state on show
-    w.webContents.send('msg', msg);
-  }
-  if (msg.type !== 'update' && msg.type !== 'stream') stream.send(msg);
+  const hidden = msg.type === 'state' && mainWin && !mainWin.isDestroyed() && (!mainWin.isVisible() || mainWin.isMinimized());     // hidden window gets the state on show
+  if (mainWin && !mainWin.isDestroyed() && !hidden) mainWin.webContents.send('msg', msg);
+  if (PILL_MSGS.has(msg.type) && pillWin && !pillWin.isDestroyed()) pillWin.webContents.send('msg', msg);
+  if (OVERLAY_MSGS.has(msg.type)) stream.send(msg);
 }
 
 /* ---------- окна ---------- */
@@ -427,19 +429,19 @@ function showCover(url) {
 
 /** iTunes art for the track; force replaces the cover on screen. Nothing found online: the cover from Windows is used, however weak. */
 async function findItunesCover(track, force) {
-  if (snap.itunesTried) {
-    if (snap.itunesDone) pickFound(force);
+  if (art.tried) {
+    if (art.done) pickFound(force);
     return;
   }
-  snap.itunesTried = true;
-  const art = await findCover(track, (u, o) => net.fetch(u, o), settings.hqCovers ? 1000 : 600);
+  art.tried = true;
+  const found = await findCover(track, (u, o) => net.fetch(u, o), settings.hqCovers ? 1000 : 600);
   if (snap.track?.key !== track.key) return;
-  snap.itunes = art; snap.itunesDone = true;
+  art.itunes = found; art.done = true;
   pickFound(force);
 }
 function pickFound(force) {
-  const art = snap.itunes || snap.native;
-  if (art && (!snap.cover || force)) showCover(art);
+  const best = art.itunes || art.native;
+  if (best && (!snap.cover || force)) showCover(best);
 }
 
 /** Если Windows не отдал обложку за пару секунд — ищем в iTunes. */
@@ -454,11 +456,11 @@ function coverFallback(track) {
 function reapplyCover() {
   const track = snap.track;
   if (!track?.title) return;
-  snap.itunes = null; snap.itunesTried = false; snap.itunesDone = false;
+  Object.assign(art, { itunes: null, tried: false, done: false });
   if (!settings.hqCovers) {
-    if (snap.native) showCover(snap.native);
+    if (art.native) showCover(art.native);
     else if (!snap.cover) findItunesCover(track, false);
-  } else if (snap.native && snap.nativeSharp) showCover(snap.native);
+  } else if (art.native && art.sharp) showCover(art.native);
   else findItunesCover(track, true);
 }
 
@@ -478,7 +480,8 @@ media.on('message', m => {
   }
   if (m.type === 'none') {
     if (!snap.none) {
-      Object.assign(snap, { track: null, state: null, cover: null, accent: null, lyrics: null, none: true, native: null, nativeSharp: false, itunes: null, itunesTried: false, itunesDone: false });
+      Object.assign(snap, { track: null, state: null, cover: null, accent: null, lyrics: null, none: true });
+      resetArt();
       lyricsToken++;
       broadcast({ type: 'none' });
     }
@@ -489,7 +492,7 @@ media.on('message', m => {
     const key = `${m.artist}|${m.title}`;
     if (!snap.track || snap.track.key !== key) {
       snap.track = { key, title: m.title, artist: m.artist, album: m.album, app: m.app, dur: m.dur };
-      snap.cover = null; snap.native = null; snap.nativeSharp = false; snap.itunes = null; snap.itunesTried = false; snap.itunesDone = false;
+      snap.cover = null; resetArt();
       setCoverAccent(null);
       snap.lyrics = null;
       seekGuard = null;
@@ -515,9 +518,9 @@ media.on('message', m => {
   }
   if (m.type === 'cover') {
     if (snap.track && snap.track.title === m.title) {
-      snap.native = `data:${sniffMime(m.data)};base64,${m.data}`;
-      snap.nativeSharp = coverSharp(snap.native);
-      if (!settings.hqCovers || snap.nativeSharp) showCover(snap.native);
+      art.native = `data:${sniffMime(m.data)};base64,${m.data}`;
+      art.sharp = coverSharp(art.native);
+      if (!settings.hqCovers || art.sharp) showCover(art.native);
       else findItunesCover(snap.track, false);                   // a weak cover stays hidden until the iTunes one arrives
     }
   }
@@ -570,7 +573,9 @@ ipcMain.handle('update:install', () => {
 });
 
 /* ---------- IPC ---------- */
-ipcMain.handle('init', () => ({ ...snap, settings, version: app.getVersion(), update: upd, stream: stream.status, sources: seenSources }));
+ipcMain.handle('init', e => (pillWin && !pillWin.isDestroyed() && e.sender === pillWin.webContents
+  ? { ...snap, cover: null, accent: null, settings }
+  : { ...snap, settings, version: app.getVersion(), update: upd, stream: stream.status, sources: seenSources }));
 ipcMain.handle('copy', (_, text) => { if (typeof text === 'string' && text.length < 500) clipboard.writeText(text); });
 ipcMain.handle('open-link', (_, key) => {
   // наружу открываем только заранее известные ссылки

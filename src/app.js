@@ -65,6 +65,7 @@ function renderLyrics(raw, plain) {
   lines = [];
   islandLine('');
   lastLine = -1; lastWord = -2; pillLine = -1;
+  hot.clear();
   pillTrack.innerHTML = '';
   const isPlain = !raw.length && plain?.length;
   lyricsEl.classList.toggle('plain', !!isPlain);
@@ -196,7 +197,11 @@ function setCover(src) {
 
 /* маленькие копии обложек: «Недавние» и «Библиотека» показывают их вместо заглушки-луны */
 const thumbKey = t => `${t?.title ?? ''}|${t?.artist ?? ''}`;
-function loadThumbs() { try { const m = JSON.parse(localStorage.getItem('thumbs') || '{}'); return m && typeof m === 'object' ? m : {}; } catch { return {}; } }
+let thumbs = null;                                // parsed once: the list is asked for every card of the library
+function loadThumbs() {
+  if (!thumbs) { try { const m = JSON.parse(localStorage.getItem('thumbs') || '{}'); thumbs = m && typeof m === 'object' ? m : {}; } catch { thumbs = {}; } }
+  return thumbs;
+}
 function saveThumb(t, src) {
   if (!t?.title || !src || t.key === 'demo') return;
   const img = new Image();
@@ -244,6 +249,7 @@ function renderRecent(r) {
   if (!r) { try { r = JSON.parse(localStorage.getItem('recent') || '[]'); } catch { r = []; } }
   r = (Array.isArray(r) ? r : []).filter(x => x && typeof x.title === 'string').slice(0, 3).map(x => ({ title: x.title, artist: typeof x.artist === 'string' ? x.artist : '' }));
   const box = $('#recentBox');
+  eqStale = true;
   $$('.rec', box).forEach(n => n.remove());
   if (!r.length) { box.insertAdjacentHTML('beforeend', '<div class="rec empty">Пока пусто</div>'); return; }
   box.insertAdjacentHTML('beforeend', r.map((x, i) => `
@@ -371,8 +377,26 @@ function updatePill(li, wi) {
 let curPage = 'now', shownSec = -1, shownPct = -1, lastTick = 0;
 const tCurEl = $('#tCur');
 function nextFrame(slow) {
-  if (slow) setTimeout(() => requestAnimationFrame(frame), 200); else requestAnimationFrame(frame);
+  // sleep through the screen refreshes between two ticks, then line up with the next one
+  setTimeout(() => requestAnimationFrame(frame), slow ? 200 : (document.hasFocus() ? 32 : 64) - 4);
 }
+
+/* the word that is being sung «heats up» (lifts and glows) and cools down afterwards; --h is set on the same tick as --p,
+   so there are no CSS transitions on words and nothing is redrawn between ticks */
+const hot = new Set();
+function heat(sung, dt) {
+  if (sung) hot.add(sung);
+  for (const w of hot) {
+    const h = w.h || 0;
+    w.h = w === sung ? h + (1 - h) * Math.min(1, dt / 0.07) : h * Math.exp(-dt / 0.22);
+    const q = Math.round(w.h * 50) / 50;
+    if (q === w.hq) continue;
+    w.hq = q;
+    if (q > 0) { w.el.classList.add('hot'); w.el.style.setProperty('--h', q); }
+    else if (w !== sung) { cool(w); hot.delete(w); }
+  }
+}
+function cool(w) { w.h = 0; w.hq = 0; w.el.classList.remove('hot'); w.el.style.removeProperty('--h'); }
 let frameIdle = false;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || !frameIdle) return;
@@ -386,6 +410,7 @@ function frame() {
   // заливка слова перерисовывается примерно 30 раз в секунду (в фоне — 15): на глаз то же самое, а нагрузка на видеокарту вдвое меньше
   const nowMs = performance.now(), step = document.hasFocus() ? 32 : 64;
   if (nowMs - lastTick < step - 4) return setTimeout(() => requestAnimationFrame(frame), step - 4 - (nowMs - lastTick));   // high refresh screens: do not spin on every vsync
+  const dt = Math.min(0.1, (nowMs - lastTick) / 1000);
   lastTick = nowMs;
 
   let t = clock.now();
@@ -395,6 +420,7 @@ function frame() {
   if (lines.length) {
     const { li, wi, p } = E.locate(lines, t);
     if (li !== lastLine) {
+      hot.forEach(cool); hot.clear();
       lines.forEach((l, i) => {
         l.el.classList.toggle('active', i === li);
         l.el.classList.toggle('near', Math.abs(i - li) === 1);
@@ -407,13 +433,17 @@ function frame() {
     }
     const l = lines[li];
     // the words and the pill preview are drawn only on their own tab: hidden ones would restyle on every screen refresh
-    if (curPage === 'now') l.words.forEach((w, k) => {
-      w.el.classList.toggle('done', k < wi || (k === wi && t >= w.e));
-      const cur = k === wi && t < w.e;
-      w.el.classList.toggle('cur', cur);
-      if (cur) { w.el.style.setProperty('--p', p.toFixed(3)); w.live = true; }
-      else if (w.live) { w.el.style.removeProperty('--p'); w.live = false; }   // дальше заливкой управляет класс done
-    });
+    if (curPage === 'now') {
+      let sung = null;
+      l.words.forEach((w, k) => {
+        w.el.classList.toggle('done', k < wi || (k === wi && t >= w.e));
+        const cur = k === wi && t < w.e;
+        w.el.classList.toggle('cur', cur);
+        if (cur) { sung = w; w.el.style.setProperty('--p', p.toFixed(3)); w.live = true; }
+        else if (w.live) { w.el.style.removeProperty('--p'); w.live = false; }   // дальше заливкой управляет класс done
+      });
+      heat(settings.wordAnim ? sung : null, dt);
+    }
     if (curPage === 'bar') {
       if (li !== pillLine) buildPill(li);
       if (wi !== lastWord && pillLine === li) { updatePill(li, wi < 0 ? 0 : wi); lastWord = wi; }
@@ -429,6 +459,7 @@ function frame() {
     if (sec !== shownSec) { shownSec = sec; tCurEl.textContent = fmt(sec); }
   }
   if (strPage.classList.contains('active')) tickStream(t);
+  vizStep();
   nextFrame(!clock.playing && hasMoon);
 }
 
@@ -549,6 +580,8 @@ let viz = null, vizFail = false, vizBusy = false;
 /* громкость: средний уровень спектра относительно недавнего максимума (автоусиление); фон следует за ним плавно, без поиска ритма */
 const beat = { peak: 0.2, low: 1, pulse: 0 };
 const bgEl = $('.orbs');
+// ease-in-out for the slow drift of the light, as 30 steps a second (see styles.css)
+E.stairVars(bgEl, { '--st8': ['inOut', 8, 30], '--st10': ['inOut', 10, 30], '--st12': ['inOut', 12, 30] });
 const beatLabel = v => v === 0 ? 'Выключено' : `Фон дышит с силой музыки: ${v}%`;
 function beatStrength() { return settings.bgStyle === 'off' ? 0 : Math.max(0, Math.min(100, +settings.bgBeat >= 0 ? +settings.bgBeat : 55)) / 100; }
 function beatStep(d) {
@@ -587,7 +620,11 @@ async function vizStart() {
     viz = { ctx, an, stream, data: new Uint8Array(an.frequencyBinCount), quietAt: 0 };
     // the capture dies when the output device changes or the PC sleeps: restart it instead of staying frozen
     stream.getAudioTracks()[0].addEventListener('ended', () => { if (viz && viz.stream === stream) vizRestart(); });
-    ctx.addEventListener('statechange', () => { if (viz && viz.ctx === ctx && vizShouldRun() && (ctx.state === 'suspended' || ctx.state === 'interrupted')) ctx.resume().catch(() => {}); });
+    ctx.addEventListener('statechange', () => {
+      if (!viz || viz.ctx !== ctx) return;
+      if (ctx.state === 'running') vizKick();
+      else if (vizShouldRun() && ctx.state !== 'closed') ctx.resume().catch(() => {});
+    });
     document.documentElement.classList.add('viz-on');
     vizLoop(viz);
   } catch (e) {
@@ -603,6 +640,7 @@ function vizStop() {
   if (!viz) return;
   viz.stream.getTracks().forEach(t => t.stop());
   viz.ctx.close().catch(() => {});
+  clearTimeout(viz.timer);
   viz = null;
   clearTimeout(vizNap);
   document.documentElement.classList.remove('viz-on');
@@ -614,7 +652,7 @@ let vizNap = 0;
 function vizWake(on) {
   if (!viz) return;
   clearTimeout(vizNap);
-  if (on) { if (viz.ctx.state !== 'running') viz.ctx.resume().catch(() => {}); return; }
+  if (on) { if (viz.ctx.state !== 'running') viz.ctx.resume().catch(() => {}); else vizKick(); return; }
   vizNap = setTimeout(() => {
     if (!viz) return;
     viz.ctx.suspend().catch(() => {});
@@ -658,13 +696,23 @@ function eqDraw(eq) {
   }
   g.globalAlpha = 1;
 }
-let vizFrame = 0;
+let vizFrame = 0, vizAt = 0, eqList = [], eqStale = true;
+/* The bars and the background glow are drawn on the same tick as the words while the lyrics loop runs: one redraw instead of two.
+   On other tabs this timer draws them: 30 times a second in front, 10 behind other windows, twice a second while nothing plays. */
 function vizLoop(v) {
   if (!viz || viz !== v) return;                    // a restarted capture has its own loop
-  // about 30 frames a second in front, 10 behind other windows; a timer, so 144-240 Hz screens do not wake it more often
-  setTimeout(() => vizLoop(v), document.hasFocus() ? 33 : 100);
-  if (document.hidden) return;
+  const asleep = document.hidden || v.ctx.state !== 'running';
+  const led = performance.now() - vizAt < 70;
+  v.timer = setTimeout(() => vizLoop(v), asleep ? 500 : led ? 120 : document.hasFocus() ? 33 : 100);
+  if (!led) vizStep();
+}
+function vizKick() { if (viz) { clearTimeout(viz.timer); vizLoop(viz); } }
+function vizStep() {
+  if (!viz || document.hidden) return;
   if (viz.ctx.state !== 'running') { if (playingUi && viz.ctx.state !== 'closed') viz.ctx.resume().catch(() => {}); return; }
+  const now = performance.now();
+  if (now - vizAt < (document.hasFocus() ? 28 : 95)) return;
+  vizAt = now;
   vizFrame++;
   viz.an.getByteFrequencyData(viz.data);
   const d = viz.data, n = d.length;
@@ -678,8 +726,10 @@ function vizLoop(v) {
   }
   if (document.hasFocus() && beatStrength() > 0) { beatStep(d); beatApply(); }
   else if (beat.pulse) { beat.pulse = 0; beatApply(); }
-  const eqs = $$('.eq').filter(eq => eq.offsetParent && (curPage === 'now' || !eq.closest('.island')));
-  for (const eq of eqs) {
+  // which equalizers are on screen is rechecked once a second and after the layout changes, not on every tick
+  if (eqStale || vizFrame % 30 === 0) { eqStale = false; eqList = $$('.eq').filter(eq => eq.offsetParent); }
+  for (const eq of eqList) {
+    if (!eq.isConnected || (curPage !== 'now' && eq.classList.contains('isl-eq'))) continue;
     eqSetup(eq, vizFrame);
     const s = eq._s, k = s.length;
     for (let b = 0; b < k; b++) {
@@ -739,6 +789,7 @@ function applySettings(s, local) {
   document.documentElement.dataset.island = settings.island === false ? '0' : '1';
   bgEl.style.setProperty('--bs', beatStrength().toFixed(2));
   if (settings.vizReal === false) vizStop(); else if (playingUi) vizStart();
+  eqStale = true;
   setBgSeg(BG.indexOf(bg));
   lyricsEl.classList.toggle('mode-word', settings.wordAnim);
   lyricsEl.classList.toggle('mode-line', !settings.wordAnim);
@@ -870,7 +921,7 @@ function go(page) {
     if (on) navInd.style.transform = `translateY(${i * 50}px)`;
   });
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'p-' + page));
-  curPage = page; document.body.dataset.page = page; shownSec = -1; shownPct = -1;                         // цикл мог спать — пусть перерисует время и полосу
+  curPage = page; document.body.dataset.page = page; shownSec = -1; shownPct = -1; eqStale = true;                         // цикл мог спать — пусть перерисует время и полосу
   if (page === 'bar') { lastWord = -2; pillLine = -1; }      // the preview is not drawn on other tabs: rebuild it on entry
   if (page === 'stream') { fitStages(); requestAnimationFrame(fitStages); }
   if (page === 'lib') loadLibrary();
@@ -883,6 +934,7 @@ function setSide(collapsed) {
   const t = collapsed ? 'Развернуть меню' : 'Свернуть меню';
   $('#sideToggle').title = t; $('#sideToggle').setAttribute('aria-label', t);
   try { localStorage.setItem('sideCollapsed', collapsed ? '1' : '0'); } catch {}
+  eqStale = true;
   if (curPage === 'stream') setTimeout(fitStages, 560);
 }
 $('#sideToggle').addEventListener('click', () => setSide(!$('.app').classList.contains('collapsed')));
@@ -927,7 +979,10 @@ function renderLibrary(typing) {
 $('#libSearch').addEventListener('input', () => renderLibrary(true));
 
 /* ---------- подсветка стекла за курсором ---------- */
+let glassAt = 0;
 addEventListener('pointermove', e => {
+  if (e.timeStamp - glassAt < 16) return;           // a soft glow does not need more than 60 updates a second
+  glassAt = e.timeStamp;
   const g = e.target.closest?.('.glass');
   if (!g) return;
   const r = g.getBoundingClientRect();
@@ -1143,7 +1198,7 @@ addEventListener('focus', syncFocusClass); addEventListener('blur', syncFocusCla
   renderStream(init.stream || { running: false, port: settings.streamPort, clients: 0 });
   if (init.none || !init.track) { setIdle(); return; }
   onMsg({ type: 'track', track: init.track });
-  if (init.cover) setCover(init.cover);
+  if (init.cover) onMsg({ type: 'cover', cover: init.cover });
   covAccent = init.accent || null; applyCov();
   if (init.state) onMsg({ type: 'state', state: init.state });
   if (init.lyrics) onLyrics(init.lyrics);

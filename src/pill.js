@@ -9,6 +9,11 @@ if (barH) { document.body.style.height = barH + 'px'; document.body.style.alignI
 const pill = document.getElementById('pill');
 const trackEl = document.getElementById('track');
 const moonEl = pill.querySelector('.moon');
+// transition curves as 60 steps a second (see pill.html); the two that depend on the speed setting are set in applySettings
+E.stairVars(document.documentElement, {
+  '--e-spring-50': ['spring', .5], '--e-spring-60': ['spring', .6], '--e-spring-80': ['spring', .8], '--e-smooth-60': ['smooth', .6],
+  '--e-ease-30': ['ease', .3], '--e-ease-45': ['ease', .45], '--e-ease-50': ['ease', .5], '--e-ease-55': ['ease', .55], '--e-wave': ['inOut', .95],
+});
 
 let settings = { offset: 0, pillSize: 1, adaptive: true, speed: 60, showPill: true, pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillAnim: 'run', pillWave: false, pillEco: false, pill60: true };
 let track = null, shift = 0, lines = [], lyricsState = 'none';       // none | loading | ok | notfound | plain
@@ -18,11 +23,17 @@ let mode = null;            // lyrics | title | notfound | idle | mini
 let idleSince = 0;
 let curLine = -1, curWord = -2;
 let marquee = null;
+let durShown = 0;
 
 function applySettings(s) {
   settings = { ...settings, ...s };
   pill.dataset.size = settings.pillSize;
-  pill.style.setProperty('--dur', (1.3 - settings.speed * 0.011).toFixed(2) + 's');
+  const dur = Math.max(6, Math.round((1.3 - settings.speed * 0.011) * 60)) / 60;        // a whole number of 1/60 s steps
+  if (dur !== durShown) {
+    durShown = dur;
+    pill.style.setProperty('--dur', dur.toFixed(4) + 's');
+    E.stairVars(pill, { '--e-dur-spring': ['spring', dur], '--e-dur-smooth': ['smooth', dur] });
+  }
   E.applyPillVars(pill, settings);
   pill.dataset.anim = settings.pillAnim || 'run';
   pill.dataset.eco = settings.pillEco ? '1' : '0';
@@ -170,7 +181,7 @@ function frame() {
 
 /**
  * Частота опроса зависит от того, что на плашке: статичный текст проверяем редко,
- * бегущую строку — 25 раз в секунду, «Заливку» слова — на каждый кадр. Постоянные 60 к/с грузили процессор и видеокарту.
+ * бегущую строку — 60 раз в секунду (25, если «60 кадров в секунду» выключено или включён экономный режим), «Заливку» — всегда 60.
  */
 function schedule() {
   if (mode === 'lyrics') {
@@ -179,16 +190,19 @@ function schedule() {
   } else { tickAt = 0; if (mode === 'title' && lyricsState === 'ok') setTimeout(frame, 100); else setTimeout(frame, 250); }   // ждём начала первой строки
 }
 
-/* 60 frames a second whatever the screen refresh rate is: frames of a 144-240 Hz screen are skipped by an accumulator */
+/* 60 frames a second whatever the screen refresh rate is: an accumulator skips the extra refreshes of a 144-240 Hz screen,
+   and a short sleep before asking for the next one keeps the page from waking up on each of them */
 let tickAt = 0, tickAcc = 0;
 function tick60() {
-  requestAnimationFrame(now => {
+  const ask = () => requestAnimationFrame(now => {
     tickAcc += tickAt ? Math.min(now - tickAt, 100) : 16.7;
     tickAt = now;
     if (tickAcc < 16.2) return tick60();
     tickAcc = Math.min(tickAcc - 16.667, 16.667);
     frame();
   });
+  const wait = 16.2 - tickAcc - 3;
+  if (tickAt && wait >= 3) setTimeout(ask, wait); else ask();
 }
 
 function onMsg(m) {

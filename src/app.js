@@ -1014,8 +1014,8 @@ function renderUpdate(u) {
   const side = $('#updSide'), busy = u.state === 'downloading', ready = u.state === 'ready', avail = u.state === 'available';
   side.classList.toggle('show', busy || ready || avail);
   side.classList.toggle('busy', busy);
-  $('#updSideTitle').textContent = ready ? 'Обновить программу' : avail ? 'Доступно обновление' : 'Загрузка обновления';
-  $('#updSideSub').textContent = ready ? `Версия ${u.version || ''} · перезапуск` : avail ? `Версия ${u.version || ''} · нажмите, чтобы скачать` : `Версия ${u.version || ''} · ${u.percent || 0}%`;
+  $('#updSideTitle').textContent = ready ? 'Обновить программу' : avail ? 'Есть обновление' : 'Загрузка обновления';
+  $('#updSideSub').textContent = ready ? `Версия ${u.version || ''} · перезапуск` : avail ? `Версия ${u.version || ''} · скачать` : `Версия ${u.version || ''} · ${u.percent || 0}%`;
   $('#updSideProg').style.width = (busy ? (u.percent || 0) : 0) + '%';
   $('#updBar').classList.toggle('on', u.state === 'downloading');
   $('#updFill').style.width = (u.percent || 0) + '%';

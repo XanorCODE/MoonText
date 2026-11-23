@@ -366,6 +366,10 @@
       </header>
 
       <div class="cards one">
+        <div class="card glass perf" id="perfNote" hidden>
+          <div class="row"><div class="card-d" id="perfText"></div><div class="btn-row"><button class="btn primary" id="perfBack">Вернуть</button><button class="btn" id="perfOk">Понятно</button></div></div>
+        </div>
+
         <div class="card glass" data-s style="--i:1">
           <div class="card-t big">Оформление</div>
           <div class="row"><div><div class="card-t">Тема программы</div><div class="card-d">Тёмная, светлая или как в Windows</div></div>
@@ -373,7 +377,7 @@
           <div class="row"><div><div class="card-t">Анимированный фон</div><div class="card-d">«Мягкий» почти не нагружает компьютер</div></div>
             <div class="seg" id="bgSeg"><i class="seg-ind"></i><button class="active">Плавный</button><button>Мягкий</button><button>Звёзды</button><button>Выкл</button></div></div>
           <div class="row"><div><div class="card-t">Снег</div><div class="card-d">Лёгкий снегопад поверх любого фона</div></div><label class="sw"><input type="checkbox" id="setSnow"><i></i></label></div>
-          <div class="row"><div><div class="card-t">Реакция фона на громкость</div><div class="card-d" id="beatLabel">Фон дышит с силой музыки</div></div><input type="range" class="range" id="setBeat" min="0" max="100" step="5" value="55"></div>
+          <div class="row"><div><div class="card-t">Реакция фона на громкость</div><div class="card-d" id="beatLabel">Фон дышит с силой музыки</div></div><input type="range" class="range" id="setBeat" min="0" max="100" step="5" value="40"></div>
         </div>
 
         <div class="card glass" data-s style="--i:2">
@@ -422,7 +426,7 @@
           </div>
           <div class="upd-bar" id="updBar"><i id="updFill"></i></div>
           <div class="row">
-            <div><div class="card-t">Сообщить о проблеме</div><div class="card-d">Скопирует версию, текущий трек, настройки и журнал в буфер и откроет страницу GitHub Issues: вставьте данные в описание</div></div>
+            <div><div class="card-t">Сообщить о проблеме</div><div class="card-d">Скопирует версию, текущий трек, настройки, сведения о компьютере (видеокарта, экран, нагрузка) и журнал в буфер и откроет страницу GitHub Issues: вставьте данные в описание</div></div>
             <button class="btn" id="reportBtn">Сообщить о проблеме</button>
           </div>
           <div class="row">

@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('moon', {
   pillReady: () => ipcRenderer.send('pill:ready'),
   openLink: key => ipcRenderer.invoke('open-link', key),
   copy: text => ipcRenderer.invoke('copy', text),
-  reportProblem: () => ipcRenderer.invoke('diag:report'),
+  reportProblem: extra => ipcRenderer.invoke('diag:report', extra),
   openStream: () => ipcRenderer.invoke('stream:open'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),

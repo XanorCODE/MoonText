@@ -13,7 +13,7 @@ let settings = { appTheme: 'dark', autostart: false, hideFullscreen: true, autoD
   pillAccent: '#ffffff', pillOpacity: 94, pillMoon: true, pillRound: true, pillMaxW: 320, pillPos: 'left', pillOffset: 0, pillAnim: 'run', pillEco: false, pillWave: false,
   streamEnabled: false, streamPort: 17800, streamTheme: 'minimal', streamSize: 56, streamLines: 3, streamAlign: 'center',
   streamFont: 'sans', streamAccent: '#ffffff', streamBg: 55, streamWords: true, streamCover: false, streamMeta: false,
-  coverAccent: true, island: true, vizReal: true, hqCovers: true, snow: true, bgStyle: 'flow', bgBeat: 55 };
+  coverAccent: true, island: true, vizReal: true, hqCovers: true, snow: true, bgStyle: 'flow', bgBeat: 40 };
 let track = null, shift = 0, covAccent = null;
 let lines = [];
 let dur = 0;
@@ -381,6 +381,63 @@ function nextFrame(slow) {
   setTimeout(() => requestAnimationFrame(frame), slow ? 200 : (document.hasFocus() ? 32 : 64) - 4);
 }
 
+/* If the window keeps falling behind (a weak video card, a big window, a recording running next to it), the heaviest decorations are
+   switched off one at a time: first the snow, then the reaction of the background, then the moving light becomes the quiet one.
+   Each step needs about twelve seconds of lag while the window is in front and music plays; the note on the Customize page offers the way back. */
+const perf = { sum: 0, n: 0, bad: 0, level: 0 };
+function perfStore(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch { return null; } }
+const tickRing = new Float32Array(600);                     // the last 600 ticks of the lyrics loop: they go into the problem report
+let tickPos = 0, tickCount = 0, tickLast = 0;
+function perfSnapshot() {
+  const n = Math.min(tickCount, 600), a = Array.from(tickRing.subarray(0, n)).sort((x, y) => x - y), pc = f => (n ? Math.round(a.filter(f).length / n * 100) : 0);
+  const r1 = x => Math.round(x * 10) / 10;
+  return {
+    ticks: n, meanMs: n ? r1(a.reduce((s, x) => s + x, 0) / n) : 0, p95Ms: n ? r1(a[Math.floor(n * 0.95)]) : 0, over50: pc(x => x > 50), over100: pc(x => x > 100),
+    agoSec: tickLast ? Math.round((performance.now() - tickLast) / 1000) : -1,
+    dpr: devicePixelRatio, win: innerWidth + 'x' + innerHeight, screen: screen.width + 'x' + screen.height, page: curPage,
+    fx: [settings.bgStyle, settings.snow !== false ? 'снег' : 'без снега', 'реакция ' + settings.bgBeat, settings.vizReal !== false ? 'визуализатор' : 'без визуализатора', settings.island !== false ? 'остров' : 'без острова', settings.pill60 ? 'плашка 60' : 'плашка 25'].join(', '),
+    relief: perfStore('perfNote') || [],
+  };
+}
+function perfWatch(ms) {
+  if (hasMoon && document.hasFocus() && clock.playing && ms < 2000) { tickRing[tickPos++ % 600] = ms; tickCount++; tickLast = performance.now(); }
+  if (!hasMoon || perf.level >= 3 || perfStore('perfOff') || !document.hasFocus() || !clock.playing || curPage === 'stream') { perf.sum = perf.n = perf.bad = 0; return; }
+  perf.sum += Math.min(ms, 400); perf.n++;
+  if (perf.sum < 3000) return;                               // a window of about three seconds, however slow the ticks are
+  perf.bad = perf.sum / perf.n > 40 ? perf.bad + 1 : 0;          // a tick should take about 33 ms
+  perf.sum = perf.n = 0;
+  if (perf.bad >= 4) { perf.bad = 0; perfRelief(); }
+}
+const PERF_STEPS = [
+  [() => settings.snow !== false, () => save({ snow: false }), () => ({ snow: true }), 'снег'],
+  [() => settings.bgStyle !== 'off' && beatStrength() > 0, () => save({ bgBeat: 0 }), () => ({ bgBeat: settings.bgBeat }), 'реакцию фона на громкость'],
+  [() => settings.bgStyle === 'flow', () => save({ bgStyle: 'soft' }), () => ({ bgStyle: 'flow' }), 'плавный фон (включён мягкий)'],
+];
+function perfRelief() {
+  while (perf.level < PERF_STEPS.length) {
+    const [can, doit, undo, said] = PERF_STEPS[perf.level++];
+    if (!can()) continue;
+    perfStore('perfUndo', { ...(perfStore('perfUndo') || {}), ...undo() });         // read the values before they change
+    doit();
+    perfStore('perfNote', [...(perfStore('perfNote') || []), said]);
+    perfShow();
+    return;
+  }
+}
+function perfShow() {
+  const list = perfStore('perfNote') || [], box = $('#perfNote');
+  box.hidden = !list.length;
+  if (list.length) $('#perfText').textContent = 'Чтобы всё работало плавно, программа сама отключила: ' + list.join(', ') + '. Если не мешает, верните.';
+}
+$('#perfBack').addEventListener('click', () => {
+  const undo = perfStore('perfUndo') || {};
+  if (Object.keys(undo).length) save(undo);
+  perfStore('perfUndo', {}); perfStore('perfNote', []); perfStore('perfOff', true);      // after the way back it is the user's choice
+  perfShow();
+});
+$('#perfOk').addEventListener('click', () => { perfStore('perfNote', []); perfShow(); });
+perfShow();
+
 /* the word that is being sung «heats up» (lifts and glows) and cools down afterwards; --h is set on the same tick as --p,
    so there are no CSS transitions on words and nothing is redrawn between ticks */
 const hot = new Set();
@@ -411,6 +468,7 @@ function frame() {
   const nowMs = performance.now(), step = document.hasFocus() ? 32 : 64;
   if (nowMs - lastTick < step - 4) return setTimeout(() => requestAnimationFrame(frame), step - 4 - (nowMs - lastTick));   // high refresh screens: do not spin on every vsync
   const dt = Math.min(0.1, (nowMs - lastTick) / 1000);
+  perfWatch(nowMs - lastTick);
   lastTick = nowMs;
 
   let t = clock.now();
@@ -459,7 +517,6 @@ function frame() {
     if (sec !== shownSec) { shownSec = sec; tCurEl.textContent = fmt(sec); }
   }
   if (strPage.classList.contains('active')) tickStream(t);
-  vizStep();
   nextFrame(!clock.playing && hasMoon);
 }
 
@@ -583,7 +640,7 @@ const bgEl = $('.orbs');
 // ease-in-out for the slow drift of the light, as 30 steps a second (see styles.css)
 E.stairVars(bgEl, { '--st8': ['inOut', 8, 30], '--st10': ['inOut', 10, 30], '--st12': ['inOut', 12, 30] });
 const beatLabel = v => v === 0 ? 'Выключено' : `Фон дышит с силой музыки: ${v}%`;
-function beatStrength() { return settings.bgStyle === 'off' ? 0 : Math.max(0, Math.min(100, +settings.bgBeat >= 0 ? +settings.bgBeat : 55)) / 100; }
+function beatStrength() { return settings.bgStyle === 'off' ? 0 : Math.max(0, Math.min(100, +settings.bgBeat >= 0 ? +settings.bgBeat : 40)) / 100; }
 function beatStep(d) {
   // loudness: the mean level of the spectrum bins from about 47 Hz to 6.5 kHz (47 Hz per bin at 48 kHz)
   const hi = Math.min(140, d.length);
@@ -596,7 +653,9 @@ function beatStep(d) {
   const rel = Math.min(1, Math.max(0, (lvl - beat.low) / Math.max(beat.peak - beat.low, 0.1)));
   const abs = Math.min(1, Math.max(0, (lvl - 0.12) / 0.3));                                 // the plain level keeps a gentle glow
   const target = lvl < 0.04 ? 0 : Math.pow(rel, 1.2) * 0.7 + abs * 0.3;
-  beat.pulse += (target - beat.pulse) * (target > beat.pulse ? 0.65 : 0.16);              // fast attack, softer release
+  // the glow breathes with the music, it does not flicker: it follows the level loosely and may not jump (about 0.3 s up, 0.7 s down at the most)
+  const step = (target - beat.pulse) * (target > beat.pulse ? 0.3 : 0.07);
+  beat.pulse += Math.max(-0.05, Math.min(0.12, step));
   if (beat.pulse < 0.004) beat.pulse = 0;
 }
 const beatOut = { bs: '', beat: '' };
@@ -696,22 +755,23 @@ function eqDraw(eq) {
   }
   g.globalAlpha = 1;
 }
-let vizFrame = 0, vizAt = 0, eqList = [], eqStale = true;
-/* The bars and the background glow are drawn on the same tick as the words while the lyrics loop runs: one redraw instead of two.
-   On other tabs this timer draws them: 30 times a second in front, 10 behind other windows, twice a second while nothing plays. */
+let vizFrame = 0, vizAt = 0, beatAt = 0, eqList = [], eqStale = true;
+/* The bars are drawn about 60 times a second in front (10 behind other windows); the glow of the background follows at 30.
+   They move by the time that has passed, not by the number of ticks: a late tick makes no jump. */
 function vizLoop(v) {
   if (!viz || viz !== v) return;                    // a restarted capture has its own loop
   const asleep = document.hidden || v.ctx.state !== 'running';
-  const led = performance.now() - vizAt < 70;
-  v.timer = setTimeout(() => vizLoop(v), asleep ? 500 : led ? 120 : document.hasFocus() ? 33 : 100);
-  if (!led) vizStep();
+  // asleep: twice a second; in front: a short sleep, then the next screen refresh, so the bars follow the picture and the page does not wake on every refresh of a fast screen
+  v.timer = asleep ? setTimeout(() => vizLoop(v), 500) : setTimeout(() => requestAnimationFrame(() => vizLoop(v)), document.hasFocus() ? 11 : 80);
+  vizStep();
 }
 function vizKick() { if (viz) { clearTimeout(viz.timer); vizLoop(viz); } }
 function vizStep() {
   if (!viz || document.hidden) return;
   if (viz.ctx.state !== 'running') { if (playingUi && viz.ctx.state !== 'closed') viz.ctx.resume().catch(() => {}); return; }
   const now = performance.now();
-  if (now - vizAt < (document.hasFocus() ? 28 : 95)) return;
+  if (now - vizAt < (document.hasFocus() ? 11 : 95)) return;
+  const dt = Math.min(100, Math.max(8, vizAt ? now - vizAt : 16)), k33 = dt / 33;       // the former 30 Hz constants are scaled by dt
   vizAt = now;
   vizFrame++;
   viz.an.getByteFrequencyData(viz.data);
@@ -724,7 +784,7 @@ function vizStep() {
     if (!viz.quietAt) viz.quietAt = Date.now();
     else if (Date.now() - viz.quietAt > 12000) { viz.quietAt = Date.now(); vizRestart(); }
   }
-  if (document.hasFocus() && beatStrength() > 0) { beatStep(d); beatApply(); }
+  if (document.hasFocus() && beatStrength() > 0) { if (now - beatAt >= 28) { beatAt = now; beatStep(d); beatApply(); } }
   else if (beat.pulse) { beat.pulse = 0; beatApply(); }
   // which equalizers are on screen is rechecked once a second and after the layout changes, not on every tick
   if (eqStale || vizFrame % 30 === 0) { eqStale = false; eqList = $$('.eq').filter(eq => eq.offsetParent); }
@@ -739,11 +799,11 @@ function vizStep() {
       for (let j = lo; j < hi && j < n; j++) sum += d[j];
       const v = sum / ((hi - lo) * 255);
       // every bar uses its own range (recent floor to recent peak), so highs move as much as the bass
-      eq._pk[b] = Math.max(v, eq._pk[b] * 0.995, 0.25);
-      eq._fl[b] = Math.min(v, eq._fl[b] + 0.003);
+      eq._pk[b] = Math.max(v, eq._pk[b] * Math.pow(0.995, k33), 0.25);
+      eq._fl[b] = Math.min(v, eq._fl[b] + 0.003 * k33);
       let t = v < 0.06 ? 0 : Math.pow(Math.min(1, Math.max(0, (v - eq._fl[b]) / Math.max(eq._pk[b] - eq._fl[b], 0.12))), 1.15);
       if (eq._wave) t *= 0.72 + 0.28 * Math.sin(Math.PI * (b + 0.5) / k);       // the island wave is taller in the middle
-      s[b] += (t - s[b]) * (t > s[b] ? 0.6 : 0.22);                               // quick rise, soft fall
+      s[b] += (t - s[b]) * (1 - Math.pow(t > s[b] ? 0.4 : 0.78, k33));            // quick rise, soft fall (0.6 and 0.22 of the way per 33 ms)
     }
     eqDraw(eq);
   }
@@ -1126,7 +1186,7 @@ $('#strCopy').addEventListener('click', async () => {
 $('#ghBtn').addEventListener('click', () => { if (hasMoon) window.moon.openLink('github'); else window.open('https://github.com/XanorCODE', '_blank'); });
 $('#reportBtn').addEventListener('click', async () => {
   const b = $('#reportBtn');
-  if (hasMoon) await window.moon.reportProblem(); else window.open('https://github.com/XanorCODE/MoonText/issues/new', '_blank');
+  if (hasMoon) await window.moon.reportProblem(perfSnapshot()); else window.open('https://github.com/XanorCODE/MoonText/issues/new', '_blank');
   b.textContent = hasMoon ? 'Скопировано ✓' : 'Открыто';
   setTimeout(() => { b.textContent = 'Сообщить о проблеме'; }, 2500);
 });

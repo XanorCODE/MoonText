@@ -1,4 +1,4 @@
-const { app, nativeTheme, BrowserWindow, ipcMain, screen, net, Tray, Menu, nativeImage, clipboard, shell, session, desktopCapturer } = require('electron');
+const { app, nativeTheme, BrowserWindow, ipcMain, screen, net, Tray, Menu, nativeImage, clipboard, shell, session, desktopCapturer, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
@@ -44,7 +44,7 @@ const DEFAULTS = {
   pillAnim: 'run',   // run | fade | rise | pop | blur | fill
   pillPos: 'left',   // left | center | right
   pillOffset: 0,     // px от края
-  bgBeat: 55,           // how strongly the background reacts to the loudness, 0 = off
+  bgBeat: 40,           // how strongly the background reacts to the loudness, 0 = off
   vizReal: true,        // equalizer reacts to the real sound of the computer (loopback capture, nothing is recorded)
   island: true,         // «остров» с треком сверху на вкладке «Сейчас играет»
   bgStyle: 'flow',      // фон окна: flow | soft | stars | off
@@ -582,7 +582,40 @@ ipcMain.handle('open-link', (_, key) => {
   if (key === 'telegram') shell.openExternal('https://t.me/xanorcode');
   if (key === 'github') shell.openExternal('https://github.com/XanorCODE');
 });
-function buildReport() {
+/** What a stutter report needs about the computer: screen, video card, hardware acceleration, power, and how busy the processes are. */
+async function machineInfo() {
+  const out = [], os = require('os');
+  const safe = async (f) => { try { await f(); } catch { /* the line is simply left out */ } };
+  await safe(() => {
+    const all = screen.getAllDisplays(), d = screen.getPrimaryDisplay();
+    out.push(`Экран: ${d.size.width}x${d.size.height}, масштаб ${d.scaleFactor}, ${d.displayFrequency} Гц, мониторов: ${all.length}${all.length > 1 ? ' (' + all.map(x => x.displayFrequency + ' Гц').join(', ') + ')' : ''}`);
+  });
+  await safe(async () => {
+    const g = await Promise.race([app.getGPUInfo('complete'), new Promise((_, no) => setTimeout(no, 4000))]);
+    const dev = (g.gpuDevice || []).map(x => `${(x.vendorId || 0).toString(16)}:${(x.deviceId || 0).toString(16)}${x.active ? '*' : ''} драйвер ${x.driverVersion || '?'}`).join('; ');
+    const r = g.auxAttributes && g.auxAttributes.glRenderer;
+    out.push(`Видеокарта: ${dev || 'нет данных'}${r ? ' · ' + r : ''}`);
+  });
+  await safe(() => {
+    const f = app.getGPUFeatureStatus();
+    out.push(`Ускорение: композитинг ${f.gpu_compositing}, растеризация ${f.rasterization}, canvas ${f['2d_canvas']}`);
+  });
+  await safe(() => {
+    const c = os.cpus();
+    out.push(`Система: ${c[0] ? c[0].model.trim() : '?'} x${c.length}, ОЗУ ${Math.round(os.totalmem() / 2 ** 30)} ГБ, свободно ${Math.round(os.freemem() / 2 ** 30)} ГБ`);
+  });
+  await safe(() => out.push(`Питание: ${powerMonitor.isOnBatteryPower() ? 'от батареи' : 'от сети'}`));
+  await safe(async () => {
+    app.getAppMetrics();                                   // the load is counted since the previous call
+    await new Promise(r => setTimeout(r, 1500));
+    const by = {};
+    for (const p of app.getAppMetrics()) { const k = p.type === 'Tab' ? 'окна' : p.type; by[k] = by[k] || { cpu: 0, mb: 0 }; by[k].cpu += p.cpu.percentCPUUsage; by[k].mb += (p.memory.workingSetSize || 0) / 1024; }
+    out.push('Нагрузка за 1,5 с: ' + Object.entries(by).map(([k, v]) => `${k} ${v.cpu.toFixed(0)}% (${v.mb.toFixed(0)} МБ)`).join(', '));
+  });
+  return out;
+}
+
+function buildReport(info = [], frames = null) {
   const t = snap.track, ly = snap.lyrics;
   const lyr = !ly ? 'нет данных'
     : ly.status === 'ok' ? `найден (${ly.edited ? 'свой' : ly.source}${ly.synced ? `, синхронизирован, строк: ${ly.lines?.length || 0}` : ', без синхронизации'})`
@@ -596,12 +629,21 @@ function buildReport() {
     `Текст: ${lyr}`,
     `Источники: ${seenSources.join(', ') || 'нет'}; игнорируются: ${(settings.ignoredApps || []).join(', ') || 'нет'}`,
     `Настройки: ${JSON.stringify(settings)}`,
+    ...info,
+    ...(frames ? [`Кадры окна: ${frames}`] : []),
     '', 'Журнал:', ...eventLog, '', 'Плашка:', ...pill,
     '```',
   ].join('\n');
 }
-ipcMain.handle('diag:report', () => {
-  const text = buildReport();
+/** The window sends numbers and short words only: anything else is dropped. */
+function framesLine(x) {
+  if (!x || typeof x !== 'object') return null;
+  const num = v => (Number.isFinite(v) ? Math.round(v * 10) / 10 : '?'), str = v => String(v ?? '').slice(0, 160);
+  return `${num(x.ticks)} тактов, средний ${num(x.meanMs)} мс (норма 33), p95 ${num(x.p95Ms)} мс, дольше 50 мс: ${num(x.over50)}%, дольше 100 мс: ${num(x.over100)}% (данные ${num(x.agoSec)} с назад); окно ${str(x.win)}, масштаб ${num(x.dpr)}, экран ${str(x.screen)}, вкладка ${str(x.page)}; ${str(x.fx)}; отключено само: ${Array.isArray(x.relief) ? x.relief.map(str).join(', ') || 'нет' : 'нет'}`;
+}
+ipcMain.handle('diag:report', async (_, extra) => {
+  const text = buildReport(await machineInfo(), framesLine(extra));
+  if (process.env.MOONTEXT_FAKE) return { ok: true, size: text.length, text };          // test mode: neither the clipboard nor the browser is touched
   clipboard.writeText(text);
   shell.openExternal('https://github.com/XanorCODE/MoonText/issues/new');
   return { ok: true, size: text.length };
